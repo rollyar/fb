@@ -5,7 +5,7 @@
 # This workflow will download a prebuilt Ruby version, install dependencies and run tests with Rake
 # For more information see: https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby
 
-name: Ruby
+name: Build fb gem
 
 on:
   push:
@@ -35,6 +35,10 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true # runs 'bundle install' and caches installed gems automatically
     - name: Install dependencies
-      run: gem install bundler rake
-    - name: Run tests
-      run: bundle exec rake compile:fb_ext test
+      run: gem install bundler
+      
+    - name: Build and Install Gem
+      run: bundle install
+        
+    - name: Run Tests
+      run: bundle exec test

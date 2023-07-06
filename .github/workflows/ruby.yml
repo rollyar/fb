@@ -34,10 +34,9 @@ jobs:
         ruby-version: ${{ matrix.ruby-version }}
         bundler-cache: true # runs 'bundle install' and caches installed gems automatically
     - name: Install dependencies
-      run: gem install bundler
-      
-    - name: Build and Install Gem
-      run: bundle install
-        
+      run: |
+        sudo apt-get update && sudo apt-get install -y libfbclient2
+        gem install bundler
+        bundle install
     - name: Run Tests
       run: bundle exec rake compile:fb_ext test

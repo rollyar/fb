@@ -40,4 +40,4 @@ jobs:
       run: bundle install
         
     - name: Run Tests
-      run: bundle exec test
+      run: bundle exec rake compile:fb_ext test

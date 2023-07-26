@@ -45,4 +45,4 @@ jobs:
             sudo apt-get install firebird-dev nodejs -y
       - name: Compile and run tests
         run: |
-          bundle exec rake compile:fb_ext  install test
+          bundle exec rake compile:fb_ext test

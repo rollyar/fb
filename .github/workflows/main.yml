@@ -15,35 +15,35 @@ jobs:
         os:
           - ubuntu-latest
         ruby:
-          - '3.1.4'
+          - "3.1.4"
 
         rails:
-          - '5.latest'
-          - '6.latest'
-          - '7.latest'
+          - "5.latest"
+          - "6.latest"
+          - "7.latest"
 
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: juarezr/firebirdsql-github-action@v1.2.0
-      with:
-            version: 'v3'
-            firebird_database: 'my_database.fdb'
-            firebird_user: 'sysdba'
-            firebird_password: 'masterkey'
+      - uses: juarezr/firebirdsql-github-action@v1.2.0
+        with:
+          version: "v3"
+          firebird_database: "my_database.fdb"
+          firebird_user: "sysdba"
+          firebird_password: "masterkey"
 
-    - uses: actions/checkout@v3
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: ${{ matrix.ruby }}
-        bundler-cache: true
+      - uses: actions/checkout@v3
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
 
-    - name: Install dependencies
-      run: |
+      - name: Install dependencies
+        run: |
           bundle install
 
-    - name: Compile and run tests
-      run: |
-            bundle install
-            bundle exec rake compile:fb_ext  install test
+      - name: Compile and run tests
+        run: |
+          bundle install
+          bundle exec rake compile:fb_ext  install test

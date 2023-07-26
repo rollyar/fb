@@ -1,0 +1,38 @@
+name: Ruby
+
+on:
+  push:
+    branches:
+      - master
+
+  pull_request:
+
+jobs:
+  build:
+    name: Ruby ${{ matrix.ruby }} Rails ${{ matrix.rails }} on ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        ruby:
+          - '2.7.6'
+          - '3.1.4'
+          - '3.2.2'
+
+        rails:
+          - '5.latest'
+          - '6.latest'
+          - '7.latest'
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ matrix.ruby }}
+        bundler-cache: true
+    - name: Run the default task
+      run: bundle exec rake

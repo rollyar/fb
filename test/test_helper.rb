@@ -1,42 +1,26 @@
-require 'rubygems'
-require 'tmpdir'
-require 'fileutils'
-require 'securerandom'
-require 'bigdecimal'
-require 'fb'
+require "rubygems"
+require "tmpdir"
+require "fileutils"
+require "securerandom"
+require "bigdecimal"
+require "fb"
+require "minitest/autorun"
 
-if RUBY_VERSION =~ /^2/
-  require 'minitest/autorun'
-
-  unless Minitest.const_defined?('Test')
-    Minitest::Test = MiniTest::Unit::TestCase
-  end
-
-  class FbTestCase < Minitest::Test
-  end
-
-else
-  require 'test/unit'
-
-  class FbTestCase < Test::Unit::TestCase
-    def default_test
-    end
-  end
-end
-
-class FbTestCase
+class FbTestCase < MiniTest::Test
   include Fb
 
   def setup
+    @db_host = ENV.fetch("DB_HOST") { "0.0.0.0" }
     @parms = get_db_conn_params("drivertest.fdb")
     @parms_s = get_db_conn_string(@parms)
     @db_file = @parms[:database].split(":", 2).last
-    @db_host = "localhost"
     @fb_version = get_fb_version
   end
 
   def teardown
-    Database.drop(@parms) rescue nil
+    Database.drop(@parms)
+  rescue StandardError
+    nil
   end
 
   def get_db_conn_params(dbname = nil)
@@ -46,14 +30,14 @@ class FbTestCase
               when /win32/
                 File.join("c:", "var", "fbdata", dbname)
               else
-                File.join("/", "tmp", "firebird", dbname)
+                File.join("/", "tmp", dbname)
               end
     {
-      :database => "localhost:#{db_file}",
-      :username => "sysdba",
-      :password => "masterkey",
-      :charset => 'NONE',
-      :role => 'READER'
+      database: "#{@db_host}:#{db_file}",
+      username: "sysdba",
+      password: "masterkey",
+      charset: "NONE",
+      role: "READER"
     }
   end
 
@@ -73,18 +57,40 @@ class FbTestCase
           connection.drop
         end
       ensure
-        Database.drop(params) rescue nil
+        begin
+          Database.drop(params)
+        rescue StandardError
+          nil
+        end
       end
       version
+    end
+  end
+
+  def assert_response_size_of_version(response_size)
+    if @fb_version == 4
+      assert_equal 6, response_size
+    elsif @fb_version == 3
+      assert_equal 5, response_size
+    else
+      assert_equal 4, response_size
+    end
+  end
+
+  def with_database
+    Database.create(@parms) do |connection|
+      yield connection
+    ensure
+      connection.drop
     end
   end
 end
 
 class Fb::Connection
   def execute_script(sql_schema)
-    self.transaction do
-      sql_schema.strip.split(';').each do |stmt|
-        self.execute(stmt)
+    transaction do
+      sql_schema.strip.split(";").each do |stmt|
+        execute(stmt)
       end
     end
   end

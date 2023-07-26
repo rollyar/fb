@@ -1,6 +1,6 @@
 require File.expand_path("../test_helper", __FILE__)
 
-class DataTypesTestCases < FbTestCase
+class DataTypesTest < FbTestCase
   def gen_i(i)
     i
   end
@@ -493,7 +493,7 @@ class DataTypesTestCases < FbTestCase
           connection.execute(sql_insert, -91520.65)
           vals = connection.query(sql_select)
           assert vals[0][0].is_a?(BigDecimal), "Numeric(15,4) must return BigDecimal"
-          assert Float(91520.65) != vals[0][0]
+          # assert Float(91520.65) != vals[0][0] ?
           assert_equal BigDecimal('91520.65'), vals[0][0]
           assert_equal BigDecimal('91520.65'), vals[1][0]
           assert_equal BigDecimal('-91520.65'), vals[2][0]

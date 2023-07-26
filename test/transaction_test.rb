@@ -1,6 +1,6 @@
 require File.expand_path("../test_helper", __FILE__)
 
-class TransactionTestCases < FbTestCase
+class TransactionTest < FbTestCase
   def test_transaction
     Database.create(@parms) do |connection|
       assert !connection.transaction_started
@@ -265,6 +265,28 @@ class TransactionTestCases < FbTestCase
         conn.execute(sql_update)
       end
       assert !conn.transaction_started
+    end
+  end
+
+  def test_default_parameters
+    Database.create(@parms) do |conn|
+      tr_query = "select mon$isolation_mode, mon$lock_timeout, mon$read_only from mon$transactions \
+                  where mon$attachment_id = current_connection"
+      # no params, use default
+      result = conn.query(tr_query).first
+      assert_equal 2, result[0] # READ COMMITTED RECORD_VERSION
+      assert_equal 10, result[1] # WAIT LOCK TIMEOUT 10
+      assert_equal 0, result[2] # READ WRITE
+
+      # snapshot nowait
+      conn.transaction("SNAPSHOT NO WAIT") do
+        conn.execute(tr_query) do |cursor|
+          result = cursor.fetchall.first
+          assert_equal 1, result[0] # concurrency (snapshot)
+          assert_equal 0, result[1] # no wait
+          assert_equal 0, result[2] # READ WRITE
+        end
+      end
     end
   end
 end

@@ -1,6 +1,6 @@
-require File.expand_path("../test_helper", __FILE__)
+require File.expand_path("test_helper", __dir__)
 
-class ConnectionTestCases < FbTestCase
+class ConnectionTest < FbTestCase
   def test_execute
     sql_schema = "CREATE TABLE TEST (ID INT, NAME VARCHAR(20))"
     sql_select = "SELECT * FROM RDB$DATABASE"
@@ -18,43 +18,30 @@ class ConnectionTestCases < FbTestCase
   def test_query_select
     sql_select = "SELECT * FROM RDB$DATABASE"
     Database.create(@parms) do |connection|
-
       d = connection.query(sql_select)
       assert_instance_of Array, d
       assert_equal 1, d.size
       assert_instance_of Array, d.first
-      if @fb_version == 3
-        assert_equal 5, d.first.size
-      else
-        assert_equal 4, d.first.size
-      end
+      assert_response_size_of_version(d.first.size)
 
       a = connection.query(:array, sql_select)
       assert_instance_of Array, a
       assert_equal 1, a.size
       assert_instance_of Array, a.first
-      if @fb_version == 3
-        assert_equal 5, a.first.size
-      else
-        assert_equal 4, a.first.size
-      end
+      assert_response_size_of_version(a.first.size)
 
       h = connection.query(:hash, sql_select)
       assert_instance_of Array, h
       assert_equal 1, h.size
       assert_instance_of Hash, h.first
-      if @fb_version == 3
-        assert_equal 5, h.first.keys.size
-      else
-        assert_equal 4, h.first.keys.size
-      end
+      assert_response_size_of_version(h.first.keys.size)
+
       assert h.first.keys.include?("RDB$DESCRIPTION")
       assert h.first.keys.include?("RDB$RELATION_ID")
       assert h.first.keys.include?("RDB$SECURITY_CLASS")
       assert h.first.keys.include?("RDB$CHARACTER_SET_NAME")
-      if @fb_version == 3
-        assert h.first.keys.include?("RDB$LINGER")
-      end
+      assert h.first.keys.include?("RDB$LINGER")
+      assert h.first.keys.include?("RDB$SQL_SECURITY") if @fb_version == 4
     end
   end
 
@@ -88,12 +75,12 @@ class ConnectionTestCases < FbTestCase
     sql_insert = "INSERT INTO TEST (ID, NAME, MEMO) VALUES (?, ?, ?)"
     sql_select = "SELECT * FROM TEST ORDER BY ID"
     Database.create(@parms) do |connection|
-      connection.execute(sql_schema);
-      memo = "x" * 65535
-      assert memo.size > 50000
+      connection.execute(sql_schema)
+      memo = "x" * 65_535
+      assert memo.size > 50_000
       connection.transaction do
         10.times do |i|
-          connection.execute(sql_insert, i, i.to_s, memo);
+          connection.execute(sql_insert, i, i.to_s, memo)
         end
       end
       connection.execute(sql_select) do |cursor|
@@ -114,11 +101,11 @@ class ConnectionTestCases < FbTestCase
     sql_insert = "INSERT INTO TEST (ID, NAME, ATTACHMENT) VALUES (?, ?, ?)"
     sql_select = "SELECT * FROM TEST ORDER BY ID"
     Database.create(@parms) do |connection|
-      connection.execute(sql_schema);
+      connection.execute(sql_schema)
       attachment = SecureRandom.random_bytes(250_000)
       connection.transaction do
         3.times do |i|
-          connection.execute(sql_insert, i, i.to_s, attachment);
+          connection.execute(sql_insert, i, i.to_s, attachment)
         end
       end
       connection.execute(sql_select) do |cursor|
@@ -144,7 +131,7 @@ class ConnectionTestCases < FbTestCase
       connection.execute(sql_schema)
       connection.transaction do
         10.times do |i|
-          affected = connection.execute(sql_insert, i, "name");
+          affected = connection.execute(sql_insert, i, "name")
           assert_equal 1, affected
         end
       end
@@ -152,7 +139,7 @@ class ConnectionTestCases < FbTestCase
       assert_equal 5, affected
       affected = connection.execute(sql_delete, 5)
       assert_equal 4, affected
-      rows = connection.execute(sql_select) do |cursor| cursor.fetchall end
+      rows = connection.execute(sql_select) { |cursor| cursor.fetchall }
       assert_equal 6, rows.size
     end
   end
@@ -164,7 +151,8 @@ class ConnectionTestCases < FbTestCase
     sql_data = [
       [1, "Name 1"],
       [2, "Name 2"],
-      [3, "Name 3"]]
+      [3, "Name 3"]
+    ]
     sql_data1 = [4, "Name 4"]
     sql_data2 = [5, "Name 5"]
     sql_data3 = [6, "Name 6"]
@@ -189,7 +177,7 @@ class ConnectionTestCases < FbTestCase
   end
 
   def test_open?
-    db = Database.create(@parms);
+    db = Database.create(@parms)
     connection = db.connect
     assert connection.open?
     connection.close
@@ -223,19 +211,24 @@ class ConnectionTestCases < FbTestCase
 
   def test_drop_instance
     db = Database.create(@parms)
-    assert File.exist?(@db_file)
-    connection = db.connect
+    assert connection = db.connect
     assert connection.open?
     connection.drop
-    assert !connection.open?
-    assert !File.exist?(@db_file)
+    refute connection.open?
+    assert_raises Fb::Error, /no such file or directory/ do
+      Database.connect(@parms)
+    end
   end
 
   def test_drop_singleton
     Database.create(@parms) do |connection|
-      assert File.exist?(@db_file)
+      # db exists
+      assert connection.query("SELECT 1 FROM RDB$DATABASE")
       connection.drop
-      assert !File.exist?(@db_file)
+      # no db, raises error
+      assert_raises Fb::Error, /no such file or directory/ do
+        Database.connect(@parms)
+      end
     end
   end
 
@@ -259,8 +252,8 @@ class ConnectionTestCases < FbTestCase
     Database.create(@parms) do |connection|
       connection.execute_script(sql_schema)
       table_names = connection.table_names
-      assert_equal 'TEST1', table_names[0]
-      assert_equal 'TEST2', table_names[1]
+      assert_equal "TEST1", table_names[0]
+      assert_equal "TEST2", table_names[1]
     end
   end
 
@@ -269,11 +262,11 @@ class ConnectionTestCases < FbTestCase
       CREATE TABLE TEST1 (ID INT);
       CREATE TABLE "Test2" (ID INT);
     END
-    Database.create(@parms.merge(:downcase_names => true)) do |connection|
+    Database.create(@parms.merge(downcase_names: true)) do |connection|
       connection.execute_script(sql_schema)
       table_names = connection.table_names
-      assert_equal 'test1', table_names[0]
-      assert_equal 'Test2', table_names[1]
+      assert_equal "test1", table_names[0]
+      assert_equal "Test2", table_names[1]
     end
   end
 
@@ -285,8 +278,8 @@ class ConnectionTestCases < FbTestCase
     Database.create(@parms) do |connection|
       connection.execute_script(sql_schema)
       names = connection.generator_names
-      assert_equal 'TEST1_SEQ', names[0]
-      assert_equal 'TEST2_SEQ', names[1]
+      assert_equal "TEST1_SEQ", names[0]
+      assert_equal "TEST2_SEQ", names[1]
     end
   end
 
@@ -295,11 +288,11 @@ class ConnectionTestCases < FbTestCase
       CREATE GENERATOR TEST1_SEQ;
       CREATE GENERATOR "TEST2_seq";
     END
-    Database.create(@parms.merge(:downcase_names => true)) do |connection|
+    Database.create(@parms.merge(downcase_names: true)) do |connection|
       connection.execute_script(sql_schema)
       names = connection.generator_names
-      assert_equal 'test1_seq', names[0]
-      assert_equal 'TEST2_seq', names[1]
+      assert_equal "test1_seq", names[0]
+      assert_equal "TEST2_seq", names[1]
     end
   end
 
@@ -313,8 +306,8 @@ class ConnectionTestCases < FbTestCase
     Database.create(@parms) do |connection|
       connection.execute_script(sql_schema)
       names = connection.view_names
-      assert_equal 'VIEW1', names[0]
-      assert_equal 'VIEW2', names[1]
+      assert_equal "VIEW1", names[0]
+      assert_equal "VIEW2", names[1]
     end
   end
 
@@ -325,11 +318,11 @@ class ConnectionTestCases < FbTestCase
       CREATE VIEW VIEW1 AS SELECT TEST1.ID, TEST1.NAME1, TEST2.NAME2 FROM TEST1 JOIN TEST2 ON TEST1.ID = TEST2.ID;
       CREATE VIEW "View2" AS SELECT TEST2.ID, TEST1.NAME1, TEST2.NAME2 FROM TEST1 JOIN TEST2 ON TEST1.NAME1 = TEST2.NAME2;
     END
-    Database.create(@parms.merge(:downcase_names => true)) do |connection|
+    Database.create(@parms.merge(downcase_names: true)) do |connection|
       connection.execute_script(sql_schema)
       names = connection.view_names
-      assert_equal 'view1', names[0]
-      assert_equal 'View2', names[1]
+      assert_equal "view1", names[0]
+      assert_equal "View2", names[1]
     end
   end
 
@@ -341,8 +334,8 @@ class ConnectionTestCases < FbTestCase
     Database.create(@parms) do |connection|
       connection.execute_script(sql_schema)
       names = connection.role_names
-      assert_equal 'READER', names[0]
-      assert_equal 'WRITER', names[1]
+      assert_equal "READER", names[0]
+      assert_equal "WRITER", names[1]
     end
   end
 
@@ -351,11 +344,11 @@ class ConnectionTestCases < FbTestCase
       create role reader;
       create role writer;
     END
-    Database.create(@parms.merge(:downcase_names => true)) do |connection|
+    Database.create(@parms.merge(downcase_names: true)) do |connection|
       connection.execute_script(sql_schema)
       names = connection.role_names
-      assert_equal 'reader', names[0]
-      assert_equal 'writer', names[1]
+      assert_equal "reader", names[0]
+      assert_equal "writer", names[1]
     end
   end
 
@@ -370,7 +363,7 @@ class ConnectionTestCases < FbTestCase
     Database.create(@parms) do |connection|
       connection.execute(sql_schema)
       names = connection.procedure_names
-      assert_equal 'PLUSONE', names[0]
+      assert_equal "PLUSONE", names[0]
     end
   end
 
@@ -382,10 +375,10 @@ class ConnectionTestCases < FbTestCase
         SUSPEND;
       END;
     END_SQL
-    Database.create(@parms.merge(:downcase_names => true)) do |connection|
+    Database.create(@parms.merge(downcase_names: true)) do |connection|
       connection.execute(sql_schema)
       names = connection.procedure_names
-      assert_equal 'plusone', names[0]
+      assert_equal "plusone", names[0]
     end
   end
 
@@ -402,7 +395,7 @@ class ConnectionTestCases < FbTestCase
       connection.execute_script(table_schema)
       connection.execute(trigger_schema)
       names = connection.trigger_names
-      assert names.include?('TEST_INSERT')
+      assert names.include?("TEST_INSERT")
     end
   end
 
@@ -415,11 +408,11 @@ class ConnectionTestCases < FbTestCase
           NEW.ID = CAST(GEN_ID(TEST_SEQ, 1) AS INT);
       END
     END_SQL
-    Database.create(@parms.merge(:downcase_names => true)) do |connection|
+    Database.create(@parms.merge(downcase_names: true)) do |connection|
       connection.execute_script(table_schema)
       connection.execute(trigger_schema)
       names = connection.trigger_names
-      assert names.include?('test_insert')
+      assert names.include?("test_insert")
     end
   end
 
@@ -437,40 +430,40 @@ class ConnectionTestCases < FbTestCase
       connection.execute_script(sql_schema)
       indexes = connection.indexes # Hash of Structs using index names as keys
       assert_equal 5, indexes.size
-      assert indexes.keys.include?('PK_MASTER')
-      assert indexes.keys.include?('PK_DETAIL')
-      assert indexes.keys.include?('FK_DETAIL_MASTER_ID')
-      assert indexes.keys.include?('IX_MASTER_NAME1')
-      assert indexes.keys.include?('IX_DETAIL_ID_DESC')
+      assert indexes.keys.include?("PK_MASTER")
+      assert indexes.keys.include?("PK_DETAIL")
+      assert indexes.keys.include?("FK_DETAIL_MASTER_ID")
+      assert indexes.keys.include?("IX_MASTER_NAME1")
+      assert indexes.keys.include?("IX_DETAIL_ID_DESC")
 
-      assert indexes['PK_MASTER'].columns.include?('ID')
-      assert indexes['PK_DETAIL'].columns.include?('ID')
+      assert indexes["PK_MASTER"].columns.include?("ID")
+      assert indexes["PK_DETAIL"].columns.include?("ID")
 
-      master_indexes = indexes.values.select {|ix| ix.table_name == 'MASTER' }
+      master_indexes = indexes.values.select { |ix| ix.table_name == "MASTER" }
       assert_equal 2, master_indexes.size
 
-      detail_indexes = indexes.values.select {|ix| ix.table_name == 'DETAIL' }
+      detail_indexes = indexes.values.select { |ix| ix.table_name == "DETAIL" }
       assert_equal 3, detail_indexes.size
 
-      assert_equal 'MASTER', indexes['PK_MASTER'].table_name
-      assert indexes['PK_MASTER'].unique
-      assert !indexes['PK_MASTER'].descending
+      assert_equal "MASTER", indexes["PK_MASTER"].table_name
+      assert indexes["PK_MASTER"].unique
+      assert !indexes["PK_MASTER"].descending
 
-      assert_equal 'MASTER', indexes['IX_MASTER_NAME1'].table_name
-      assert indexes['IX_MASTER_NAME1'].unique
-      assert !indexes['IX_MASTER_NAME1'].descending
+      assert_equal "MASTER", indexes["IX_MASTER_NAME1"].table_name
+      assert indexes["IX_MASTER_NAME1"].unique
+      assert !indexes["IX_MASTER_NAME1"].descending
 
-      assert_equal 'DETAIL', indexes['PK_DETAIL'].table_name
-      assert indexes['PK_DETAIL'].unique
-      assert !indexes['PK_DETAIL'].descending
+      assert_equal "DETAIL", indexes["PK_DETAIL"].table_name
+      assert indexes["PK_DETAIL"].unique
+      assert !indexes["PK_DETAIL"].descending
 
-      assert_equal 'DETAIL', indexes['FK_DETAIL_MASTER_ID'].table_name
-      assert !indexes['FK_DETAIL_MASTER_ID'].unique
-      assert !indexes['FK_DETAIL_MASTER_ID'].descending
+      assert_equal "DETAIL", indexes["FK_DETAIL_MASTER_ID"].table_name
+      assert !indexes["FK_DETAIL_MASTER_ID"].unique
+      assert !indexes["FK_DETAIL_MASTER_ID"].descending
 
-      assert_equal 'DETAIL', indexes['IX_DETAIL_ID_DESC'].table_name
-      assert !indexes['IX_DETAIL_ID_DESC'].unique
-      assert indexes['IX_DETAIL_ID_DESC'].descending
+      assert_equal "DETAIL", indexes["IX_DETAIL_ID_DESC"].table_name
+      assert !indexes["IX_DETAIL_ID_DESC"].unique
+      assert indexes["IX_DETAIL_ID_DESC"].descending
 
       connection.drop
     end
@@ -486,17 +479,17 @@ class ConnectionTestCases < FbTestCase
       CREATE UNIQUE ASCENDING INDEX IX_MASTER_NAME1 ON MASTER(NAME1);
       CREATE DESCENDING INDEX "IX_DETAIL_ID_desc" ON DETAIL(ID);
     END
-    Database.create(@parms.merge(:downcase_names => true)) do |connection|
+    Database.create(@parms.merge(downcase_names: true)) do |connection|
       connection.execute_script(sql_schema)
       indexes = connection.indexes # Hash of Structs using index names as keys
       assert_equal 5, indexes.size
-      assert indexes.keys.include?('pk_master')
-      assert indexes.keys.include?('pk_detail')
-      assert indexes.keys.include?('fk_detail_master_id')
-      assert indexes.keys.include?('ix_master_name1')
-      assert indexes.keys.include?('IX_DETAIL_ID_desc')
-      assert indexes['pk_master'].columns.include?('id'), "columns missing id"
-      assert indexes['pk_detail'].columns.include?('id'), "columns missing id"
+      assert indexes.keys.include?("pk_master")
+      assert indexes.keys.include?("pk_detail")
+      assert indexes.keys.include?("fk_detail_master_id")
+      assert indexes.keys.include?("ix_master_name1")
+      assert indexes.keys.include?("IX_DETAIL_ID_desc")
+      assert indexes["pk_master"].columns.include?("id"), "columns missing id"
+      assert indexes["pk_detail"].columns.include?("id"), "columns missing id"
       connection.drop
     end
   end
@@ -515,6 +508,7 @@ class ConnectionTestCases < FbTestCase
         VC VARCHAR(1),
         VC10 STRING10,
         VC10000 VARCHAR(10000),
+        VCUTF8 VARCHAR(255) CHARACTER SET UTF8 COLLATE UNICODE_CI_AI,
         DT DATE,
         TM TIME,
         TS TIMESTAMP,
@@ -532,19 +526,53 @@ class ConnectionTestCases < FbTestCase
       Struct::FbColumn.new("C10",     nil,        "CHAR",             0, 10,    nil, 0,  nil, true),
       Struct::FbColumn.new("VC",      nil,        "VARCHAR",          0, 1,     nil, 0,  nil, true),
       Struct::FbColumn.new("VC10",    "STRING10", "VARCHAR",          0, 10,    nil, 0,  nil, true),
-      Struct::FbColumn.new("VC10000", nil,        "VARCHAR",          0, 10000, nil, 0,  nil, true),
+      Struct::FbColumn.new("VC10000", nil,        "VARCHAR",          0, 10_000, nil, 0, nil, true),
+      Struct::FbColumn.new("VCUTF8",  nil,        "VARCHAR",          0, 255,   nil, 0,  nil, true),
       Struct::FbColumn.new("DT",      nil,        "DATE",             0, 4,     nil, 0,  nil, true),
       Struct::FbColumn.new("TM",      nil,        "TIME",             0, 4,     nil, 0,  nil, true),
       Struct::FbColumn.new("TS",      nil,        "TIMESTAMP",        0, 8,     nil, 0,  nil, true),
       Struct::FbColumn.new("N92",     nil,        "NUMERIC",          1, 4,     9,   -2, nil, true),
-      Struct::FbColumn.new("D92",     nil,        "DECIMAL",          2, 4,     9,   -2, nil, true),
+      Struct::FbColumn.new("D92",     nil,        "DECIMAL",          2, 4,     9,   -2, nil, true)
     ]
     Database.create(@parms) do |connection|
       connection.execute_script(sql_schema)
-      columns = connection.columns('TEST')
+      columns = connection.columns("TEST")
       expected.each_with_index do |column, i|
         assert_equal column, columns[i]
       end
+    end
+  end
+
+  def test_default_collation
+    params = @parms.dup
+    params[:encoding] = "utf-8"
+    params[:charset] = "utf8"
+    params[:collation] = "UNICODE_CI_AI"
+
+    sql = <<~SQL
+      SELECT d.RDB$COLLATION_NAME
+      FROM RDB$RELATION_FIELDS a
+      INNER JOIN RDB$FIELDS b
+         ON b.RDB$FIELD_NAME = a.RDB$FIELD_SOURCE
+      INNER JOIN RDB$CHARACTER_SETS c
+         ON c.RDB$CHARACTER_SET_ID = b.RDB$CHARACTER_SET_ID
+      INNER JOIN RDB$COLLATIONS d
+         ON d.RDB$COLLATION_ID = b.RDB$COLLATION_ID AND d.RDB$CHARACTER_SET_ID = b.RDB$CHARACTER_SET_ID
+      WHERE RDB$RELATION_NAME = 'TEST'
+    SQL
+
+    begin
+      Database.connect(params).drop
+    rescue StandardError
+      nil
+    end
+    Database.create(params) do |connection|
+      connection.query "create table test (test varchar(10))"
+      res = connection.query sql
+      # test.test collation
+      assert_equal params[:collation], res.first.first.strip
+    ensure
+      connection.drop
     end
   end
 end

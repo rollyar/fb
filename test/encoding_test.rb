@@ -2,7 +2,7 @@
 require File.expand_path("../test_helper", __FILE__)
 
 if RUBY_VERSION =~ /^1.9/
-  class EncodingTestCases < FbTestCase
+  class EncodingTest < FbTestCase
     def test_encoding
       sql_schema = <<-END
         create table TEST (

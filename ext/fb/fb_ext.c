@@ -110,6 +110,7 @@ struct FbConnection {
 	unsigned short db_dialect;
 	short downcase_names;
 	VALUE encoding;
+	VALUE collation;
 	int dropped;
 	ISC_STATUS isc_status[20];
 	/* struct FbConnection *next; */
@@ -183,7 +184,6 @@ static long calculate_buffsize(XSQLDA *sqlda)
 	return offset + sizeof(short);
 }
 
-#if (FB_API_VER >= 20)
 static VALUE fb_error_msg(const ISC_STATUS *isc_status)
 {
 	char msg[1024];
@@ -195,19 +195,6 @@ static VALUE fb_error_msg(const ISC_STATUS *isc_status)
 	}
 	return result;
 }
-#else
-static VALUE fb_error_msg(ISC_STATUS *isc_status)
-{
-	char msg[1024];
-	VALUE result = rb_str_new(NULL, 0);
-	while (isc_interprete(msg, &isc_status))
-	{
-		result = rb_str_cat(result, msg, strlen(msg));
-		result = rb_str_cat(result, "\n", strlen("\n"));
-	}
-	return result;
-}
-#endif
 
 struct time_object {
 	struct timeval tv;
@@ -406,6 +393,7 @@ static VALUE fb_sql_type_from_code(int code, int subtype)
 			break;
 #if (FB_API_VER >= 30)
 		case SQL_BOOLEAN:
+		case blr_bool:
 		case blr_boolean:
 			sql_type = "BOOLEAN";
 			break;
@@ -919,6 +907,13 @@ error:
 	rb_raise(rb_eFbError, "%s", desc);
 }
 
+static char isc_tpb[] = {isc_tpb_version3,
+                        isc_tpb_write,
+                        isc_tpb_read_committed,
+                        isc_tpb_rec_version,
+                        isc_tpb_wait,
+                        isc_tpb_lock_timeout, 4, 10,0,0,0}; // 10 seconds
+
 static void fb_connection_transaction_start(struct FbConnection *fb_connection, VALUE opt)
 {
 	char *tpb = 0;
@@ -930,12 +925,11 @@ static void fb_connection_transaction_start(struct FbConnection *fb_connection, 
 
 	if (!NIL_P(opt)) {
 		tpb = trans_parseopts(opt, &tpb_len);
+		isc_start_transaction(fb_connection->isc_status, &fb_connection->transact, 1, &fb_connection->db, tpb_len, tpb);
 	} else {
-		tpb_len = 0;
-		tpb = NULL;
+		isc_start_transaction(fb_connection->isc_status, &fb_connection->transact, 1, &fb_connection->db, sizeof(isc_tpb), isc_tpb);
 	}
 
-	isc_start_transaction(fb_connection->isc_status, &fb_connection->transact, 1, &fb_connection->db, tpb_len, tpb);
 	xfree(tpb);
 	fb_error_check(fb_connection->isc_status);
 }
@@ -1672,9 +1666,9 @@ static VALUE fb_cursor_fields_ary(XSQLDA *sqlda, short downcase_names)
 		dtp = var->sqltype & ~1;
 
 		if (var->aliasname_length) { /* aliasname always present? */
-			name = rb_tainted_str_new(var->aliasname, var->aliasname_length);
+			name = rb_str_new(var->aliasname, var->aliasname_length);
 		} else {
-			name = rb_tainted_str_new(var->sqlname, var->sqlname_length);
+			name = rb_str_new(var->sqlname, var->sqlname_length);
 		}
 		if (downcase_names && no_lowercase(name)) {
 			rb_funcall(name, id_downcase_bang, 0);
@@ -1816,7 +1810,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 
 			switch (dtp) {
 				case SQL_TEXT:
-					val = rb_tainted_str_new(var->sqldata, var->sqllen);
+					val = rb_str_new(var->sqldata, var->sqllen);
 					#if HAVE_RUBY_ENCODING_H
 					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
@@ -1824,7 +1818,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 
 				case SQL_VARYING:
 					vary = (VARY*)var->sqldata;
-					val = rb_tainted_str_new(vary->vary_string, vary->vary_length);
+					val = rb_str_new(vary->vary_string, vary->vary_length);
 					#if HAVE_RUBY_ENCODING_H
 					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
@@ -1906,7 +1900,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 								break;
 						}
 					}
-					val = rb_tainted_str_new(NULL,total_length);
+					val = rb_str_new(NULL,total_length);
 					for (p = RSTRING_PTR(val); num_segments > 0; num_segments--, p += actual_seg_len) {
 						isc_get_segment(fb_connection->isc_status, &blob_handle, &actual_seg_len, max_segment, p);
 						fb_error_check(fb_connection->isc_status);
@@ -2046,6 +2040,7 @@ static VALUE cursor_execute2(VALUE args)
 		length = calculate_buffsize(fb_cursor->i_sqlda);
 		if (length > fb_cursor->i_buffer_size) {
 			fb_cursor->i_buffer = xrealloc(fb_cursor->i_buffer, length);
+			memset(fb_cursor->i_buffer, 0, length);
 			fb_cursor->i_buffer_size = length;
 		}
 	}
@@ -2416,6 +2411,7 @@ static const char* CONNECTION_PARMS[] = {
 	"@role",
 	"@downcase_names",
 	"@encoding",
+	"@collation",
 	(char *)0
 };
 
@@ -2444,6 +2440,7 @@ static VALUE connection_create(isc_db_handle handle, VALUE db)
 	downcase_names = rb_iv_get(db, "@downcase_names");
 	fb_connection->downcase_names = RTEST(downcase_names);
 	fb_connection->encoding = rb_iv_get(db, "@encoding");
+	fb_connection->collation = rb_iv_get(db, "@collation");
 
 	for (i = 0; (parm = CONNECTION_PARMS[i]); i++) {
 		rb_iv_set(connection, parm, rb_iv_get(db, parm));
@@ -2563,7 +2560,10 @@ static VALUE connection_columns(VALUE self, VALUE table_name)
     VALUE empty = rb_str_new(NULL, 0);
     VALUE columns = rb_ary_new();
     const char *sql = "SELECT r.rdb$field_name NAME, r.rdb$field_source, f.rdb$field_type, f.rdb$field_sub_type, "
-                "f.rdb$field_length, f.rdb$field_precision, f.rdb$field_scale SCALE, "
+                // get proper varchar length since UTF8 has 4 bytes per symbol
+                // f.rdb$character_set_id = 4 => UTF8
+                "iif(f.rdb$character_set_id = 4, f.rdb$character_length, f.rdb$field_length) LENGTH, "
+                "f.rdb$field_precision, f.rdb$field_scale SCALE, "
                 "COALESCE(r.rdb$default_source, f.rdb$default_source), "
                 "COALESCE(r.rdb$null_flag, f.rdb$null_flag) "
                 "FROM rdb$relation_fields r "
@@ -2727,8 +2727,7 @@ static VALUE default_int(VALUE hash, const char *key, int def)
 
 static VALUE database_allocate_instance(VALUE klass)
 {
-	NEWOBJ(obj, struct RObject);
-	OBJSETUP((VALUE)obj, klass, T_OBJECT);
+	NEWOBJ_OF(obj, struct RObject, klass, T_OBJECT);
 	return (VALUE)obj;
 }
 
@@ -2754,7 +2753,7 @@ static VALUE hash_from_connection_string(VALUE cs)
 
 static void check_page_size(int page_size)
 {
-	if (page_size != 1024 && page_size != 2048 && page_size != 4096 && page_size != 8192 && page_size != 16384) {
+	if (page_size != 1024 && page_size != 2048 && page_size != 4096 && page_size != 8192 && page_size != 16384 && page_size != 32768) {
 		rb_raise(rb_eFbError, "Invalid page size: %d", page_size);
 	}
 }
@@ -2770,6 +2769,7 @@ static void check_page_size(int page_size)
  * :role:: database role to connect using (default: nil)
  * :downcase_names:: Column names are reported in lowercase, unless they were originally mixed case (default: nil).
  * :page_size:: page size to use when creating a database (default: 4096)
+ * :collation:: collation to be used for a given charset (default: 'NONE')
  */
 static VALUE database_initialize(int argc, VALUE *argv, VALUE self)
 {
@@ -2792,6 +2792,7 @@ static VALUE database_initialize(int argc, VALUE *argv, VALUE self)
 		rb_iv_set(self, "@downcase_names", rb_hash_aref(parms, ID2SYM(rb_intern("downcase_names"))));
 		rb_iv_set(self, "@encoding", default_string(parms, "encoding", "ASCII-8BIT"));
 		rb_iv_set(self, "@page_size", default_int(parms, "page_size", 4096));
+		rb_iv_set(self, "@collation", default_string(parms, "collation", "NONE"));
 	}
 	return self;
 }
@@ -2817,12 +2818,13 @@ static VALUE database_create(VALUE self)
 	VALUE password = rb_iv_get(self, "@password");
 	VALUE page_size = rb_iv_get(self, "@page_size");
 	VALUE charset = rb_iv_get(self, "@charset");
+	VALUE collation = rb_iv_get(self, "@collation");
 
 	check_page_size(NUM2INT(page_size));
 
-	parms = rb_ary_new3(5, database, username, password, page_size, charset);
+	parms = rb_ary_new3(6, database, username, password, page_size, charset, collation);
 
-	fmt = rb_str_new2("CREATE DATABASE '%s' USER '%s' PASSWORD '%s' PAGE_SIZE = %d DEFAULT CHARACTER SET %s;");
+	fmt = rb_str_new2("CREATE DATABASE '%s' USER '%s' PASSWORD '%s' PAGE_SIZE = %d DEFAULT CHARACTER SET %s COLLATION %s;");
 	stmt = rb_funcall(fmt, rb_intern("%"), 1, parms);
 	sql = StringValuePtr(stmt);
 
@@ -2941,7 +2943,8 @@ void Init_fb_ext()
 
 	rb_mFb = rb_define_module("Fb");
 
-	rb_cFbDatabase = rb_define_class_under(rb_mFb, "Database", rb_cData);
+	rb_cFbDatabase = rb_define_class_under(rb_mFb, "Database", rb_cObject);
+	rb_undef_alloc_func(rb_cFbDatabase);
     rb_define_alloc_func(rb_cFbDatabase, database_allocate_instance);
     rb_define_method(rb_cFbDatabase, "initialize", database_initialize, -1);
 	rb_define_attr(rb_cFbDatabase, "database", 1, 1);
@@ -2952,6 +2955,7 @@ void Init_fb_ext()
 	rb_define_attr(rb_cFbDatabase, "downcase_names", 1, 1);
 	rb_define_attr(rb_cFbDatabase, "encoding", 1, 1);
 	rb_define_attr(rb_cFbDatabase, "page_size", 1, 1);
+	rb_define_attr(rb_cFbDatabase, "collation", 1, 1);
     rb_define_method(rb_cFbDatabase, "create", database_create, 0);
 	rb_define_singleton_method(rb_cFbDatabase, "create", database_s_create, -1);
 	rb_define_method(rb_cFbDatabase, "connect", database_connect, 0);
@@ -2959,7 +2963,9 @@ void Init_fb_ext()
 	rb_define_method(rb_cFbDatabase, "drop", database_drop, 0);
 	rb_define_singleton_method(rb_cFbDatabase, "drop", database_s_drop, -1);
 
-	rb_cFbConnection = rb_define_class_under(rb_mFb, "Connection", rb_cData);
+	rb_cFbConnection = rb_define_class_under(rb_mFb, "Connection", rb_cObject);
+	rb_undef_alloc_func(rb_cFbConnection);
+	rb_undef_method(CLASS_OF(rb_cFbConnection), "new");
 	rb_define_attr(rb_cFbConnection, "database", 1, 1);
 	rb_define_attr(rb_cFbConnection, "username", 1, 1);
 	rb_define_attr(rb_cFbConnection, "password", 1, 1);
@@ -2967,6 +2973,7 @@ void Init_fb_ext()
 	rb_define_attr(rb_cFbConnection, "role", 1, 1);
 	rb_define_attr(rb_cFbConnection, "downcase_names", 1, 1);
 	rb_define_attr(rb_cFbConnection, "encoding", 1, 1);
+	rb_define_attr(rb_cFbConnection, "collation", 1, 1);
 	rb_define_method(rb_cFbConnection, "to_s", connection_to_s, 0);
 	rb_define_method(rb_cFbConnection, "execute", connection_execute, -1);
 	rb_define_method(rb_cFbConnection, "query", connection_query, -1);
@@ -2989,7 +2996,9 @@ void Init_fb_ext()
 	rb_define_method(rb_cFbConnection, "columns", connection_columns, 1);
 	/* rb_define_method(rb_cFbConnection, "cursor", connection_cursor, 0); */
 
-	rb_cFbCursor = rb_define_class_under(rb_mFb, "Cursor", rb_cData);
+	rb_cFbCursor = rb_define_class_under(rb_mFb, "Cursor", rb_cObject);
+	rb_undef_alloc_func(rb_cFbCursor);
+	rb_undef_method(CLASS_OF(rb_cFbCursor), "new");
 	/* rb_define_method(rb_cFbCursor, "execute", cursor_execute, -1); */
 	rb_define_method(rb_cFbCursor, "fields", cursor_fields, -1);
 	rb_define_method(rb_cFbCursor, "fetch", cursor_fetch, -1);
@@ -2998,7 +3007,9 @@ void Init_fb_ext()
 	rb_define_method(rb_cFbCursor, "close", cursor_close, 0);
 	rb_define_method(rb_cFbCursor, "drop", cursor_drop, 0);
 
-	rb_cFbSqlType = rb_define_class_under(rb_mFb, "SqlType", rb_cData);
+	rb_cFbSqlType = rb_define_class_under(rb_mFb, "SqlType", rb_cObject);
+	rb_undef_alloc_func(rb_cFbSqlType);
+	rb_undef_method(CLASS_OF(rb_cFbSqlType), "new");
 	rb_define_singleton_method(rb_cFbSqlType, "from_code", sql_type_from_code, 2);
 
 	rb_eFbError = rb_define_class_under(rb_mFb, "Error", rb_eStandardError);

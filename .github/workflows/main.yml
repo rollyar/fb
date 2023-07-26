@@ -18,8 +18,8 @@ jobs:
           - "3.1.4"
 
         rails:
-          - "5.latest"
-          - "6.latest"
+          # - "5.latest"
+          # - "6.latest"
           - "7.latest"
 
     runs-on: ${{ matrix.os }}

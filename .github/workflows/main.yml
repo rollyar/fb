@@ -33,6 +33,7 @@ jobs:
           firebird_password: "masterkey"
 
       - uses: actions/checkout@v3
+      
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -43,6 +44,7 @@ jobs:
         run: |
             sudo apt-get update -y
             sudo apt-get install firebird-dev nodejs -y
+            
       - name: Compile and run tests
         run: |
-          bundle exec rake compile:fb_ext test
+          bundle exec rake install test

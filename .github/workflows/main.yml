@@ -43,10 +43,7 @@ jobs:
       - name: Install dependencies
         run: |
             sudo apt-get update -y
-            sudo apt-get install git-core zlib1g-dev build-essential libssl-dev libreadline-dev libyaml-dev \ 
-            libxml2-dev libxslt1-dev libcurl4-openssl-dev software-properties-common \
-            libffi-dev libfbclient2 firebird-dev -y
-            
+            sudo apt-get install git-core zlib1g-dev build-essential libssl-dev libreadline-dev libyaml-dev libxml2-dev libxslt1-dev libcurl4-openssl-dev software-properties-common libffi-dev libfbclient2 firebird-dev -y
       - name: Compile and run tests
         run: |
           bundle exec rake install

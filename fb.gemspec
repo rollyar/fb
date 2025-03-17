@@ -19,15 +19,15 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.6.0"
 
-  spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "http://github.com/rollyar/fb"
+  spec.homepage = "https://github.com/rollyar/fb"
+  spec.metadata["source_code_uri"] = "https://github.com/rollyar/fb"
   spec.metadata["changelog_uri"] = "https://github.com/rollyar/fb/blob/master/CHANGELOG.md"
 
   spec.files = `git ls-files README.md ext lib`.split
   spec.extensions = ["ext/fb/extconf.rb"]
   spec.require_paths = ["lib"]
 
-  spec.add_development_dependency "minitest"
-  spec.add_development_dependency "rake"
-  spec.add_development_dependency "rake-compiler"
+  spec.add_development_dependency "minitest", "~> 5.0"
+  spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "rake-compiler", "~> 1.2"
 end

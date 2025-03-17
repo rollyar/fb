@@ -13,84 +13,36 @@
 # * Unit tests take about 10 times as long to complete using Firebird Classic.  Default xinetd.conf settings may not allow the tests to complete due to the frequency with which new attachments are made.
 # = Mac OS X (Intel)
 # * Works
-WINDOWS_PLATFORMS = /(mingw32|mswin32|x64-mingw-ucrt)/
-
-def unquote(string)
-  string.sub(/\A(['"])?(.*?)\1?\z/m, '\2') unless string.nil?
-end
-
-def key_exists?(path)
-  Win32::Registry::HKEY_LOCAL_MACHINE.open(path, ::Win32::Registry::KEY_READ)
-  true
-rescue StandardError
-  false
-end
-
-def read_firebird_registry
-  require "win32/registry"
-  return false unless key_exists?('SOFTWARE\Firebird Project\Firebird Server\Instances')
-
-  Win32::Registry::HKEY_LOCAL_MACHINE.open('SOFTWARE\Firebird Project\Firebird Server\Instances',
-                                           Win32::Registry::Constants::KEY_READ) do |reg|
-    return reg.read_s("DefaultInstance")
-  rescue StandardError
-    nil
-  end
-end
-
-def search_firebird_path
-  program_files = ENV["ProgramFiles"].gsub("\\", "/").gsub(/(\w+\s+[\w\s]+)/) { |s| s.size > 8 ? s[0, 6] + "~1" : s }
-  program_files_x86 = ENV["ProgramFiles"].gsub("\\", "/").gsub(/(\w+\s+[\w\s]+)/) do |s|
-    s.size > 8 ? s[0, 6] + "~2" : s
-  end
-  result = Dir["#{program_files}/Firebird/Firebird_*"].sort.last || Dir["#{program_files_x86}/Firebird/Firebird_*"].sort.last
-end
-
-if RUBY_PLATFORM =~ WINDOWS_PLATFORMS and ARGV.grep(/^--with-opt-dir=/).empty?
-  opt = unquote(ENV["FIREBIRD"])
-  opt ||= read_firebird_registry
-  opt ||= search_firebird_path
-  if opt
-    ARGV << "--with-opt-dir=#{opt}"
-  else
-    puts "No any Firebird instances found in system."
-    exit
-  end
-end
-
 require "mkmf"
 
-libs = %w[fbclient gds]
-
+# Detectar la plataforma
 case RUBY_PLATFORM
-when /bccwin32/
-  libs.push "fbclient_bor"
-when WINDOWS_PLATFORMS
-  $CFLAGS = $CFLAGS + " -DOS_WIN32"
-  libs.push "fbclient_ms"
-when /darwin/
-  #    hosttype = `uname -m`.chomp
+when /darwin/ # macOS
+  firebird_framework = "/Library/Frameworks/Firebird.framework"
+  unless Dir.exist?(firebird_framework)
+    abort "Error: No se encontró Firebird en /Library/Frameworks/Firebird.framework. Asegúrate de instalar Firebird."
+  end
+
   $CFLAGS += " -DOS_UNIX"
-  #    $CFLAGS.gsub!(/-arch (\w+)/) { |m| $1 == hosttype ? m : '' }
-  #    $LDFLAGS.gsub!(/-arch (\w+)/) { |m| $1 == hosttype ? m : '' }
-  #    CONFIG['LDSHARED'].gsub!(/-arch (\w+)/) { |m| $1 == hosttype ? m : '' }
-  $CPPFLAGS += " -I/Library/Frameworks/Firebird.framework/Headers"
-  # $LDFLAGS += " -framework Firebird"
-  $LDFLAGS += " -L/Library/Frameworks/Firebird.framework/Libraries"
+  $CPPFLAGS += " -I#{firebird_framework}/Headers"
+  $LDFLAGS += " -L#{firebird_framework}/Libraries -lfbclient"
 when /linux/
-  $CFLAGS  = $CFLAGS + " -DOS_UNIX"
+  $CFLAGS += " -DOS_UNIX"
+  $CPPFLAGS += " -I/usr/include/firebird"
+  $LDFLAGS += " -L/usr/lib -lfbclient"
+when /(mingw32|mswin32|x64-mingw-ucrt)/ # Windows
+  $CFLAGS += " -DOS_WIN32"
+  firebird_path = ENV["FIREBIRD"] || Dir["C:/Program Files/Firebird/Firebird_*"].sort.last
+  unless firebird_path && File.exist?(firebird_path)
+    abort "Error: No se encontró Firebird en C:/Program Files/Firebird/"
+  end
+  $CPPFLAGS += " -I#{firebird_path}/include"
+  $LDFLAGS += " -L#{firebird_path}/lib -lfbclient"
 end
 
-dir_config("firebird")
-
-test_func = "isc_attach_database"
-
-case RUBY_PLATFORM
-when WINDOWS_PLATFORMS
-  libs.find { |lib| have_library(lib) } and
-    have_func(test_func, ["ibase.h"])
-else
-  libs.find { |lib| have_library(lib, test_func) }
+# Verificar si se puede encontrar libfbclient
+unless have_library("fbclient", "isc_attach_database")
+  abort "Error: No se encontró la biblioteca libfbclient. Asegúrate de instalar Firebird."
 end
 
 create_makefile("fb/fb_ext")

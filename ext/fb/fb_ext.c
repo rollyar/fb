@@ -2969,6 +2969,10 @@ static VALUE database_s_drop(int argc, VALUE *argv, VALUE klass)
 	return database_drop(obj);
 }
 
+VALUE method_example(VALUE self) {
+    return rb_str_new2("Hello from fb_ext!");
+}
+
 void Init_fb()
 {
 	rb_funcall(rb_mKernel, rb_intern("require"), 1, rb_str_new2("bigdecimal"));

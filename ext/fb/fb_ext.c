@@ -2973,7 +2973,7 @@ VALUE method_example(VALUE self) {
     return rb_str_new2("Hello from fb_ext!");
 }
 
-void Init_fb()
+void Init_fb_ext()
 {
 	rb_funcall(rb_mKernel, rb_intern("require"), 1, rb_str_new2("bigdecimal"));
 

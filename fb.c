@@ -1347,8 +1347,11 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 	}
 	
 	/* Convert to string */
-	sprintf(bigdecimal_buffer, "%llu", abs_data);
-	len = (int)strlen(bigdecimal_buffer);
+	int wrote = snprintf(bigdecimal_buffer, sizeof(bigdecimal_buffer), "%llu", abs_data);
+	if (wrote < 0 || wrote >= (int)sizeof(bigdecimal_buffer)) {
+		rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
+	}
+	len = wrote;
 	
 	/* Add decimal point if scale != 0 */
 	if (scale != 0) {
@@ -1366,14 +1369,10 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 			}
 			
 			/* Shift the string to make room for leading zeros */
-			for (int i = len + leading_zeros - 1; i >= leading_zeros; i--) {
-				bigdecimal_buffer[i] = bigdecimal_buffer[i - leading_zeros];
-			}
+			memmove(bigdecimal_buffer + leading_zeros, bigdecimal_buffer, len + 1);
 			
 			/* Add leading zeros */
-			for (int i = 0; i < leading_zeros; i++) {
-				bigdecimal_buffer[i] = '0';
-			}
+			memset(bigdecimal_buffer, '0', leading_zeros);
 			
 			len += leading_zeros;
 			dot_pos = len - decimal_places;
@@ -1385,9 +1384,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 		}
 		
 		/* Insert decimal point */
-		for (int i = len; i > dot_pos; i--) {
-			bigdecimal_buffer[i] = bigdecimal_buffer[i-1];
-		}
+		memmove(bigdecimal_buffer + dot_pos + 1, bigdecimal_buffer + dot_pos, len - dot_pos);
 		bigdecimal_buffer[dot_pos] = '.';
 		bigdecimal_buffer[len + 1] = '\0';
 	}
@@ -1396,9 +1393,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 	if (is_negative) {
 		/* Shift string to make room for minus sign */
 		len = (int)strlen(bigdecimal_buffer);
-		for (int i = len; i > 0; i--) {
-			bigdecimal_buffer[i] = bigdecimal_buffer[i-1];
-		}
+		memmove(bigdecimal_buffer + 1, bigdecimal_buffer, len + 1);
 		bigdecimal_buffer[0] = '-';
 		bigdecimal_buffer[len + 1] = '\0';  /* Ensure proper null termination */
 	}

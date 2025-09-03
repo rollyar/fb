@@ -1348,7 +1348,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 	
 	/* Convert to string */
 	sprintf(bigdecimal_buffer, "%llu", abs_data);
-	len = strlen(bigdecimal_buffer);
+	len = (int)strlen(bigdecimal_buffer);
 	
 	/* Add decimal point if scale != 0 */
 	if (scale != 0) {
@@ -1361,7 +1361,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 			int leading_zeros = 1 - dot_pos;
 			
 			/* Check buffer bounds */
-			if (len + leading_zeros + 1 >= sizeof(bigdecimal_buffer)) {
+			if (len + leading_zeros + 1 >= (int)sizeof(bigdecimal_buffer)) {
 				rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
 			}
 			
@@ -1380,7 +1380,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 		}
 		
 		/* Check buffer bounds before inserting decimal point */
-		if (len + 1 >= sizeof(bigdecimal_buffer)) {
+		if (len + 1 >= (int)sizeof(bigdecimal_buffer)) {
 			rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
 		}
 		
@@ -1395,7 +1395,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 	/* Add minus sign if needed - do this AFTER decimal point placement */
 	if (is_negative) {
 		/* Shift string to make room for minus sign */
-		len = strlen(bigdecimal_buffer);
+		len = (int)strlen(bigdecimal_buffer);
 		for (int i = len; i > 0; i--) {
 			bigdecimal_buffer[i] = bigdecimal_buffer[i-1];
 		}
@@ -1798,17 +1798,17 @@ static VALUE fb_cursor_fields_ary(XSQLDA *sqlda, short downcase_names)
 			rb_funcall(name, id_downcase_bang, 0);
 		}
 		rb_str_freeze(name);
-		type_code = INT2NUM((long)(var->sqltype & ~1));
+		type_code = INT2NUM((int)(var->sqltype & ~1));
 		sql_type = fb_sql_type_from_code(dtp, var->sqlsubtype);
 		sql_subtype = INT2FIX(var->sqlsubtype);
-		display_size = INT2NUM((long)var->sqllen);
+		display_size = INT2NUM((int)var->sqllen);
 		if (dtp == SQL_VARYING) {
-			internal_size = INT2NUM((long)var->sqllen + sizeof(short));
+			internal_size = INT2NUM((int)(var->sqllen + sizeof(short)));
 		} else {
-			internal_size = INT2NUM((long)var->sqllen);
+			internal_size = INT2NUM((int)var->sqllen);
 		}
 		precision = precision_from_sqlvar(var);
-		scale = INT2NUM((long)var->sqlscale);
+		scale = INT2NUM((int)var->sqlscale);
 		nullable = (var->sqltype & 1) ? Qtrue : Qfalse;
 
 		field = rb_struct_new(rb_sFbField, name, sql_type, sql_subtype, display_size, internal_size, precision, scale, nullable, type_code);
@@ -1952,7 +1952,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					if (var->sqlscale < 0) {
 						val = sql_decimal_to_bigdecimal((long long)*(ISC_SHORT*)var->sqldata, var->sqlscale);
 					} else {
-						val = INT2NUM((long)*(short*)var->sqldata);
+						val = INT2NUM((int)*(short*)var->sqldata);
 					}
 					break;
 
@@ -2195,7 +2195,7 @@ static VALUE cursor_execute2(VALUE args)
 			fb_error_check(fb_connection->isc_status);
 		}
 		rows_affected = cursor_rows_affected(fb_cursor, statement);
-		result = INT2NUM(rows_affected);
+		result = INT2NUM((int)rows_affected);
 	} else {
 		/* Open cursor if the SQL statement is query */
 		/* Get the number of columns and reallocate the SQLDA */

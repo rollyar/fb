@@ -497,10 +497,10 @@ static VALUE cursor_drop _((VALUE));
 static VALUE cursor_execute _((int, VALUE*, VALUE));
 static VALUE cursor_fetchall _((int, VALUE*, VALUE));
 
-static void fb_cursor_mark();
-static void fb_cursor_free();
-static void fb_connection_mark();
-static void fb_connection_free();
+static void fb_cursor_mark(struct FbCursor *fb_cursor);
+static void fb_cursor_free(struct FbCursor *fb_cursor);
+static void fb_connection_mark(struct FbConnection *fb_connection);
+static void fb_connection_free(struct FbConnection *fb_connection);
 
 /* ruby data types */
 
@@ -518,8 +518,8 @@ static const rb_data_type_t fbdatabase_data_type = {
 static const rb_data_type_t fbconnection_data_type = {
     "fbdb/connection",
     {
-        fb_connection_mark,
-        fb_connection_free,
+        (void (*)(void *))fb_connection_mark,
+        (void (*)(void *))fb_connection_free,
         NULL,
     },
     0, 0, 0
@@ -528,8 +528,8 @@ static const rb_data_type_t fbconnection_data_type = {
 static const rb_data_type_t fbcursor_data_type = {
     "fbdb/cursor",
     {
-        fb_cursor_mark,
-        fb_cursor_free,
+        (void (*)(void *))fb_cursor_mark,
+        (void (*)(void *))fb_cursor_free,
         NULL,
     },
     0, 0, 0

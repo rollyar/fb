@@ -74,7 +74,8 @@ case RUBY_PLATFORM
 #    $LDFLAGS.gsub!(/-arch (\w+)/) { |m| $1 == hosttype ? m : '' }
 #    CONFIG['LDSHARED'].gsub!(/-arch (\w+)/) { |m| $1 == hosttype ? m : '' }
     $CPPFLAGS += " -I/Library/Frameworks/Firebird.framework/Headers"
-    $LDFLAGS += " -framework Firebird"
+    # $LDFLAGS += " -framework Firebird"
+    $LDFLAGS += " -L/Library/Frameworks/Firebird.framework/Resources/lib -Wl,-rpath,/Library/Frameworks/Firebird.framework/Resources/lib"
   when /linux/
     $CFLAGS  = $CFLAGS + " -DOS_UNIX"
 end

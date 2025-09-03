@@ -337,11 +337,25 @@ class DataTypesTestCases < FbTestCase
             connection.execute(sql_insert, Time.now)
           end
         elsif cols[i] == 'DT'
-          assert_raises ArgumentError do
-            connection.execute(sql_insert, Date)
+          # Ruby 3.0.3+ raises Date::Error instead of ArgumentError for Date class
+          if RUBY_VERSION >= "3.0"
+            assert_raises Date::Error do
+              connection.execute(sql_insert, Date)
+            end
+          else
+            assert_raises ArgumentError do
+              connection.execute(sql_insert, Date)
+            end
           end
-          assert_raises ArgumentError do
-            connection.execute(sql_insert, 2006)
+          # Ruby 3.0.3+ raises Date::Error instead of ArgumentError for integer
+          if RUBY_VERSION >= "3.0"
+            assert_raises Date::Error do
+              connection.execute(sql_insert, 2006)
+            end
+          else
+            assert_raises ArgumentError do
+              connection.execute(sql_insert, 2006)
+            end
           end
         elsif cols[i] == 'TM'
           assert_raises TypeError do

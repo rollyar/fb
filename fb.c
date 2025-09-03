@@ -430,6 +430,11 @@ static VALUE fb_sql_type_from_code(int code, int subtype)
 				case 2:		sql_type = "DECIMAL";	break;
 			}
 			break;
+#if (FB_API_VER >= 40)
+		case SQL_INT128:
+			sql_type = "INT128";
+			break;
+#endif
 		default:
 			printf("Unknown: %d, %d\n", code, subtype);
 			sql_type = "UNKNOWN";
@@ -1327,14 +1332,77 @@ static void fb_cursor_free(struct FbCursor *fb_cursor)
 
 static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 {
-	unsigned long i;
-	char bigdecimal_buffer[23];
-	unsigned long bigdecimal_dot;
-	sprintf(bigdecimal_buffer, "%022lld", sql_data);
-	bigdecimal_dot = strlen(bigdecimal_buffer) + scale;
-	for (i = strlen(bigdecimal_buffer); i > bigdecimal_dot; i--)
-		bigdecimal_buffer[i] = bigdecimal_buffer[i-1];
-	bigdecimal_buffer[bigdecimal_dot] = '.';
+	char bigdecimal_buffer[128];  /* Increased buffer size */
+	int is_negative = 0;
+	unsigned long long abs_data;
+	int len, decimal_places, dot_pos;
+	
+	/* Handle negative numbers */
+	if (sql_data < 0) {
+		is_negative = 1;
+		/* Use unsigned arithmetic to avoid overflow with minimum integer value */
+		abs_data = (unsigned long long)(-sql_data);
+	} else {
+		abs_data = (unsigned long long)sql_data;
+	}
+	
+	/* Convert to string */
+	sprintf(bigdecimal_buffer, "%llu", abs_data);
+	len = strlen(bigdecimal_buffer);
+	
+	/* Add decimal point if scale != 0 */
+	if (scale != 0) {
+		decimal_places = (scale < 0) ? -scale : scale;
+		dot_pos = len - decimal_places;
+		
+		/* If we need leading zeros before the decimal point */
+		if (dot_pos <= 0) {
+			/* Need to add leading zeros to ensure at least one digit before decimal point */
+			int leading_zeros = 1 - dot_pos;
+			
+			/* Check buffer bounds */
+			if (len + leading_zeros + 1 >= sizeof(bigdecimal_buffer)) {
+				rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
+			}
+			
+			/* Shift the string to make room for leading zeros */
+			for (int i = len + leading_zeros - 1; i >= leading_zeros; i--) {
+				bigdecimal_buffer[i] = bigdecimal_buffer[i - leading_zeros];
+			}
+			
+			/* Add leading zeros */
+			for (int i = 0; i < leading_zeros; i++) {
+				bigdecimal_buffer[i] = '0';
+			}
+			
+			len += leading_zeros;
+			dot_pos = len - decimal_places;
+		}
+		
+		/* Check buffer bounds before inserting decimal point */
+		if (len + 1 >= sizeof(bigdecimal_buffer)) {
+			rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
+		}
+		
+		/* Insert decimal point */
+		for (int i = len; i > dot_pos; i--) {
+			bigdecimal_buffer[i] = bigdecimal_buffer[i-1];
+		}
+		bigdecimal_buffer[dot_pos] = '.';
+		bigdecimal_buffer[len + 1] = '\0';
+	}
+	
+	/* Add minus sign if needed - do this AFTER decimal point placement */
+	if (is_negative) {
+		/* Shift string to make room for minus sign */
+		len = strlen(bigdecimal_buffer);
+		for (int i = len; i > 0; i--) {
+			bigdecimal_buffer[i] = bigdecimal_buffer[i-1];
+		}
+		bigdecimal_buffer[0] = '-';
+		bigdecimal_buffer[len + 1] = '\0';  /* Ensure proper null termination */
+	}
+	
 	return rb_funcall(rb_cObject, rb_intern("BigDecimal"), 1, rb_str_new2(bigdecimal_buffer));
 }
 
@@ -1570,7 +1638,22 @@ static void fb_cursor_set_inputparams(struct FbCursor *fb_cursor, long argc, VAL
 					offset += alignment;
 					break;
 #endif
-				default :
+
+#if (FB_API_VER >= 40)
+				case SQL_INT128:
+					offset = FB_ALIGN(offset, alignment);
+					var->sqldata = (char *)(fb_cursor->i_buffer + offset);
+					if (var->sqlscale < 0) {
+						llvalue = NUM2LL(object_to_unscaled_bigdecimal(obj, var->sqlscale));
+					} else {
+						llvalue = NUM2LL(object_to_fixnum(obj));
+					}
+					*(ISC_INT64 *)var->sqldata = llvalue;
+					offset += alignment;
+					break;
+#endif
+
+				default:
 					rb_raise(rb_eFbError, "Specified table includes unsupported datatype (%d)", dtp);
 			}
 
@@ -1957,6 +2040,17 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					rb_warn("ARRAY not supported (yet)");
 					val = Qnil;
 					break;
+
+#if (FB_API_VER >= 40)
+				case SQL_INT128:
+					/* Treat as 64-bit integer for now */
+					if (var->sqlscale < 0) {
+						val = sql_decimal_to_bigdecimal(*(ISC_INT64*)var->sqldata, var->sqlscale);
+					} else {
+						val = LL2NUM(*(ISC_INT64*)var->sqldata);
+					}
+					break;
+#endif
 
 #if (FB_API_VER >= 30)
 				case SQL_BOOLEAN:

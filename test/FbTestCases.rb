@@ -44,17 +44,24 @@ module FbTestCases
     rm_rf @db_file
 
     Database.create(@parms) do |connection|
-      
       d = connection.query("SELECT substring(rdb$get_context('SYSTEM', 'ENGINE_VERSION') from 1 for 1) from rdb$database")
-      
       @fb_version = Integer(d.first[0])
-
       connection.drop
     end
 
     rm_rf @db_file
   end
 
+  def expected_columns
+    case @fb_version
+    when 5, 4
+      6
+    when 3
+      5
+    else
+      4
+    end
+  end
 end
 
 class Fb::Connection

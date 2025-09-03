@@ -98,7 +98,7 @@ class DataTypesTestCases < FbTestCase
         I INTEGER,
         SI SMALLINT,
         BI BIGINT,
-        F FLOAT, 
+        F FLOAT,
         D DOUBLE PRECISION,
         C CHAR,
         C10 CHAR(10),

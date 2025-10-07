@@ -10,12 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     services:
       firebird:
-        image: firebirdsql/firebird:5.0.0
+        image: ibexa/firebird:5.0
         env:
           ISC_PASSWORD: masterkey
-          FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USER: SYSDBA
-          FIREBIRD_PASSWORD: masterkey
         options: >-
           --health-cmd "bash -c 'echo \"SELECT 1 FROM RDB\\\$DATABASE;\" | isql-fb -user SYSDBA -password masterkey localhost:test.fdb'"
           --health-interval 10s

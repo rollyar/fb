@@ -2,50 +2,43 @@ name: Ruby
 
 on:
   push:
-    branches:
-      - master
-
+    branches: [ master ]
   pull_request:
 
 jobs:
-  build:
-    name: Ruby ${{ matrix.ruby }} Rails ${{ matrix.rails }} on ${{ matrix.os }}
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-        ruby:
-          - "3.3.6"
-
-        rails:   
-          - "7.latest"
-
-    runs-on: ${{ matrix.os }}
-    
+  test:
+    runs-on: ubuntu-latest
     services:
       firebird:
-        image: jacobalberty/firebird:5.0
-        ports:
-          - 3050:3050
+        image: firebird/firebird:5.0
         env:
           ISC_PASSWORD: masterkey
-
-    steps:   
+          FIREBIRD_DATABASE: test.fdb
+        options: >-
+          --health-cmd "isql-fb -user SYSDBA -password masterkey -database 'localhost:test.fdb' -input /dev/null"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: '3.3.6'
           bundler-cache: true
 
-      - name: Install dependencies
+      - name: Install Firebird client
         run: |
-            sudo apt-get update -y
-            sudo apt-get install git-core zlib1g-dev build-essential libssl-dev libreadline-dev libyaml-dev libxml2-dev libxslt1-dev libcurl4-openssl-dev software-properties-common libffi-dev libfbclient2 firebird-dev -y
-      - name: Compile and run tests
-        run: |
-          bundle exec rake install
-          bundle exec rake test
-          env:
-            FB_TEST_DATABASE: "localhost:/firebird/data/test.fdb"
+          sudo apt-get update
+          sudo apt-get install -y libfbclient2
+
+      - name: Compile extension
+        run: bundle exec rake compile
+
+      - name: Run tests
+        run: bundle exec rake test
+        env:
+          FB_TEST_DATABASE: "localhost:test.fdb"
+          FB_TEST_USER: "SYSDBA"
+          FB_TEST_PASSWORD: "masterkey"

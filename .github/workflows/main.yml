@@ -11,36 +11,49 @@ jobs:
         image: jacobalberty/firebird:v5.0
         env:
           ISC_PASSWORD: masterkey
-          FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USER: SYSDBA
-          FIREBIRD_PASSWORD: masterkey
+          EnableWireCrypt: "true"
+          FIREBIRD_DATABASE: "test.fdb"
         ports:
           - 3050:3050
         options: >-
-          --health-cmd "echo 'SELECT 1 FROM RDB\$DATABASE;' | isql-fb -user SYSDBA -password masterkey localhost:employee || exit 0"
+          --health-cmd "exit 0"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 5
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3.6'
           bundler-cache: true
+      
       - name: Install Firebird client
         run: |
           sudo apt-get update
           sudo apt-get install -y firebird-dev firebird3.0-utils
+      
       - name: Wait for Firebird to be ready
         run: |
-          echo "Waiting for Firebird to be ready..."
-          sleep 10
+          echo "Waiting for Firebird to start..."
+          for i in {1..30}; do
+            if echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost:test.fdb 2>/dev/null; then
+              echo "Firebird is ready!"
+              exit 0
+            fi
+            echo "Attempt $i: Firebird not ready yet..."
+            sleep 2
+          done
+          echo "Firebird failed to start"
+          exit 1
+      
       - name: Compile extension
         run: bundle exec rake compile
+      
       - name: Run tests
         run: bundle exec rake test
         env:
-          FB_TEST_DATABASE: "localhost/3050:test.fdb"
+          FB_TEST_DATABASE: "localhost:test.fdb"
           FB_TEST_USER: "SYSDBA"
           FB_TEST_PASSWORD: "masterkey"

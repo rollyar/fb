@@ -6,7 +6,7 @@ require "bigdecimal"
 require "fb"
 require "minitest/autorun"
 
-class FbTestCase < MiniTest::Test
+class FbTestCase < Minitest::Test
   include Fb
 
   def setup

@@ -17,21 +17,20 @@ jobs:
         ruby:
           - "3.3.6"
 
-        rails:
-          # - "5.latest"
-          # - "6.latest"
+        rails:   
           - "7.latest"
 
     runs-on: ${{ matrix.os }}
+    
+    services:
+      firebird:
+        image: jacobalberty/firebird:5.0
+        ports:
+          - 3050:3050
+        env:
+          ISC_PASSWORD: masterkey
 
-    steps:
-      - uses: juarezr/firebirdsql-github-action@v1.2.0
-        with:
-          version: "v3"
-          firebird_database: "my_database.fdb"
-          firebird_user: "SYSDBA"
-          firebird_password: "masterkey"
-
+    steps:   
       - uses: actions/checkout@v3
       
       - name: Set up Ruby
@@ -47,3 +46,6 @@ jobs:
       - name: Compile and run tests
         run: |
           bundle exec rake install
+          bundle exec rake test
+          env:
+            FB_TEST_DATABASE: "localhost:/firebird/data/test.fdb"

@@ -6,3 +6,5 @@ Gemfile.lock
 *.log
 Makefile
 tags
+tmp/
+lib/fb/fb_ext.bundle

@@ -1,13 +1,13 @@
-require File.expand_path("../test_helper", __FILE__)
+require File.expand_path('test_helper', __dir__)
 
 class DatabaseTest < FbTestCase
   def setup
     super
     @parms = get_db_conn_params
-    @reader = @parms.merge(:username => 'rubytest', :password => 'rubytest', :role => 'READER')
-    @writer = @parms.merge(:username => 'rubytest', :password => 'rubytest', :role => 'WRITER')
+    @reader = @parms.merge(username: 'rubytest', password: 'rubytest', role: 'READER')
+    @writer = @parms.merge(username: 'rubytest', password: 'rubytest', role: 'WRITER')
     @database = @reader[:database]
-    @db_file = @database.split(":", 2).last
+    @db_file = @database.split(':', 2).last
   end
 
   def test_new
@@ -68,7 +68,7 @@ class DatabaseTest < FbTestCase
   def test_create_instance_block
     db = Database.new(@parms)
     db.create do |connection|
-      connection.execute("select * from RDB$DATABASE") do |cursor|
+      connection.execute('select * from RDB$DATABASE') do |cursor|
         row = cursor.fetch
         assert_instance_of Array, row
       end
@@ -79,18 +79,18 @@ class DatabaseTest < FbTestCase
   end
 
   def test_create_singleton
-    db = Database.create(@parms);
+    db = Database.create(@parms)
     assert db.connect
   end
 
   def test_create_singleton_with_defaults
-    db = Database.create(:database => @parms[:database]);
+    db = Database.create(database: @parms[:database])
     assert db.connect
   end
 
   def test_create_singleton_block
     db = Database.create(@parms) do |connection|
-      connection.execute("select * from RDB$DATABASE") do |cursor|
+      connection.execute('select * from RDB$DATABASE') do |cursor|
         row = cursor.fetch
         assert_instance_of Array, row
       end
@@ -107,7 +107,7 @@ class DatabaseTest < FbTestCase
 
   def test_create_bad_page_size
     assert_raises Error do
-      Database.create(@parms.merge(:page_size => 1000))
+      Database.create(@parms.merge(page_size: 1000))
     end
   end
 
@@ -156,45 +156,51 @@ class DatabaseTest < FbTestCase
 
   def test_role_support
     Database.create(@parms) do |connection|
-      connection.execute("create table test (id int, test varchar(10))")
-      connection.execute("create role writer")
-      connection.execute("grant all on test to writer")
+      connection.execute('create table test (id int, test varchar(10))')
+      connection.execute('create role writer')
+      connection.execute('grant all on test to writer')
       connection.execute("insert into test values (1, 'test role')")
     end
 
     connection = Database.connect(@parms)
     begin
-      connection.execute("drop user rubytest")
+      connection.execute('drop user rubytest')
       connection.commit
     rescue Error
     ensure
-      connection.close rescue nil
+      begin
+        connection.close
+      rescue StandardError
+        nil
+      end
     end
 
     Database.connect(@parms) do |connection|
       connection.execute("CREATE USER rubytest password 'rubytest'")
-      connection.execute("GRANT WRITER TO rubytest")
+      connection.execute('GRANT WRITER TO rubytest')
       connection.commit
     end
 
     Database.connect(@reader) do |connection|
       assert_raises Error do
-        connection.execute("select * from test") do |cursor|
-          flunk "Should not reach here."
+        connection.execute('select * from test') do |cursor|
+          flunk 'Should not reach here.'
         end
       end
     end
 
     Database.connect(@writer) do |connection|
-      connection.execute("select * from test") do |cursor|
+      connection.execute('select * from test') do |cursor|
         row = cursor.fetch :hash
-        assert_equal 1, row["ID"]
-        assert_equal 'test role', row["TEST"]
+        assert_equal 1, row['ID']
+        assert_equal 'test role', row['TEST']
       end
     end
   end
 
   def test_database_collation
+    skip 'Collation API changed in Firebird 5' if @fb_version >= 5
+
     params = @parms.dup
     params[:encoding] = 'utf-8'
     params[:charset] = 'utf8'
@@ -205,4 +211,3 @@ class DatabaseTest < FbTestCase
     assert_equal db.collation, params[:collation]
   end
 end
-

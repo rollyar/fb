@@ -50,11 +50,11 @@ jobs:
       - name: Create test database
         run: |
           cat > /tmp/create_db.sql << EOF
-CREATE DATABASE 'localhost:/tmp/test.fdb' 
-USER 'SYSDBA' PASSWORD 'masterkey' 
-PAGE_SIZE 8192 DEFAULT CHARACTER SET UTF8;
-QUIT;
-EOF
+                  CREATE DATABASE 'localhost:/tmp/test.fdb' 
+                  USER 'SYSDBA' PASSWORD 'masterkey' 
+                  PAGE_SIZE 8192 DEFAULT CHARACTER SET UTF8;
+                  QUIT;
+          EOF
           isql-fb -i /tmp/create_db.sql
           sudo chmod 666 /tmp/test.fdb
       

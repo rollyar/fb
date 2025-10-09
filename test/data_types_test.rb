@@ -117,10 +117,22 @@ class DataTypesTest < FbTestCase
         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     END
     sql_select = 'select * from TEST order by I'
-    sql_sum = 'select sum(I), sum(SI), sum(BI), sum(F), sum(D), sum(N92), sum(D92), sum(N154) from TEST'
-    sql_avg = 'select avg(I), avg(SI), avg(BI), avg(F), avg(D), avg(N92), avg(D92), avg(N154) from TEST'
-    sql_max = 'select max(I), max(SI), max(BI), max(F), max(D), max(N92), max(D92), max(N154) from TEST'
-    sql_min = 'select min(I), min(SI), min(BI), min(F), min(D), min(N92), min(D92), min(N154) from TEST'
+    if @fb_version >= 5
+      sql_sum = "select sum(I), ..., sum(cast(N92 as double precision)), ... from TEST"
+      sql_avg = "select avg(I), ..., avg(cast(N92 as double precision)), ... from TEST"
+      sql_sum = 'select sum(I), sum(SI), sum(BI), sum(F), sum(D), sum(cast(N92 as double precision)), sum(cast(D92 as double precision)), sum(cast(N154 as double precision)) from TEST'
+      sql_avg = 'select avg(I), avg(SI), avg(BI), avg(F), avg(D), avg(cast(N92 as double precision)), avg(cast(D92 as double precision)), avg(cast(N154 as double precision)) from TEST'
+      sql_max = 'select max(I), max(SI), max(BI), max(F), max(D), max(cast(N92 as double precision)), max(cast(D92 as double precision)), max(cast(N154 as double precision)) from TEST'
+      sql_min = 'select min(I), min(SI), min(BI), min(F), min(D), min(cast(N92 as double precision)), min(cast(D92 as double precision)), min(cast(N154 as double precision)) from TEST'
+    else
+      sql_sum = 'select sum(I), sum(SI), sum(BI), sum(F), sum(D), sum(N92), sum(D92), sum(N154) from TEST'
+      sql_avg = 'select avg(I), avg(SI), avg(BI), avg(F), avg(D), avg(N92), avg(D92), avg(N154) from TEST'
+      sql_max = 'select max(I), max(SI), max(BI), max(F), max(D), max(N92), max(D92), max(N154) from TEST'
+      sql_min = 'select min(I), min(SI), min(BI), min(F), min(D), min(N92), min(D92), min(N154) from TEST'
+    end
+
+
+
     Database.create(@parms) do |connection|
       connection.execute(sql_schema)
       connection.transaction do

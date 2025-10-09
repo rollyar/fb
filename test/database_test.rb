@@ -199,7 +199,7 @@ class DatabaseTest < FbTestCase
   end
 
   def test_database_collation
-    skip 'Collation API changed in Firebird 5' if @fb_version >= 5
+    return unless Fb::Database.method_defined?(:collation)
 
     params = @parms.dup
     params[:encoding] = 'utf-8'

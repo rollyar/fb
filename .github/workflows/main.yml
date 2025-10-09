@@ -17,7 +17,7 @@ jobs:
 
     services:
       firebird:
-        image: firebirdsql/firebird.5
+        image: firebirdsql/firebird:5
         env:
           ISC_PASSWORD: masterkey
           FIREBIRD_ROOT_PASSWORD: masterkey

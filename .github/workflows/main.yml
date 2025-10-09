@@ -39,7 +39,7 @@ jobs:
             -e FIREBIRD_DATABASE=test.fdb \
             -e FIREBIRD_DATABASE_DEFAULT_CHARSET=UTF8 \
             -p 3050:3050 \
-            firebirdsql/firebird:5
+            firebirdsql/firebird:4
 
       - name: Wait for Firebird to be ready
         run: |

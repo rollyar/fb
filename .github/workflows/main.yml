@@ -12,7 +12,7 @@ jobs:
     
     services:
       firebird:
-        image: jacobalberty/firebird:3.0.11
+        image: firebirdsql/firebird
         env:
           ISC_PASSWORD: masterkey
           EnableLegacyClientAuth: "true"

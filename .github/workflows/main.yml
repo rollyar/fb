@@ -12,19 +12,12 @@ jobs:
     
     services:
       firebird:
-        image: jacobalberty/firebird:v3.0
+        image: jacobalberty/firebird:3.0.11
         env:
-          FIREBIRD_DATABASE: test.fdb
-          FIREBIRD_USER: SYSDBA
-          FIREBIRD_PASSWORD: masterkey
           ISC_PASSWORD: masterkey
+          EnableLegacyClientAuth: "true"
         ports:
           - 3050:3050
-        options: >-
-          --health-cmd "echo 'SELECT 1 FROM RDB\$DATABASE;' | isql-fb -user SYSDBA -password masterkey localhost:test.fdb || exit 0"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     
     strategy:
       matrix:
@@ -66,10 +59,21 @@ jobs:
             sleep 2
           done
       
-      - name: Verify Firebird connection
+      - name: Create test database
         run: |
           sudo apt-get install -y firebird3.0-utils
-          echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost:test.fdb || echo "Database may not exist yet, will be created by tests"
+          # Crear la base de datos
+          cat > /tmp/create_db.sql << 'EOF'
+                CREATE DATABASE 'localhost:test.fdb'
+                USER 'SYSDBA' PASSWORD 'masterkey'
+                PAGE_SIZE 8192;
+                QUIT;
+          EOF
+          isql-fb -i /tmp/create_db.sql || echo "Database creation attempted"
+      
+      - name: Verify Firebird connection
+        run: |
+          echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost:test.fdb || echo "Will be created by tests if needed"
       
       - name: Compile and install gem
         run: bundle exec rake install 

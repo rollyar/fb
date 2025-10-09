@@ -39,7 +39,7 @@ class TransactionTest < FbTestCase
     Database.create(@parms) do |connection|
       assert !connection.transaction_started
       assert_raises RuntimeError do
-        connection.execute(sql_select) do |cursor|
+        connection.execute(sql_select) do |_cursor|
           assert connection.transaction_started
           raise 'abort'
         end
@@ -275,9 +275,11 @@ class TransactionTest < FbTestCase
 
       result = conn.query(tr_query).first
 
+      puts "FB version: #{@fb_version}"
+      puts "Transaction info: #{result.inspect}"
+
       if @fb_version >= 5
-        # Firebird 5 puede tener diferentes valores por defecto
-        assert_includes [1, 2], result[0] # Isolation mode
+        assert_equal 1, result[0] # Isolation mode
         assert result[1] >= -1 # Lock timeout (puede ser -1 para WAIT infinito)
         assert_equal 0, result[2] # READ WRITE
       else

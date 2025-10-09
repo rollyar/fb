@@ -140,13 +140,3 @@ class FbTestCase < Minitest::Test
     end
   end
 end
-
-class Fb::Connection
-  def execute_script(sql_schema)
-    transaction do
-      sql_schema.strip.split(';').each do |stmt|
-        execute(stmt.strip) unless stmt.strip.empty?
-      end
-    end
-  end
-end

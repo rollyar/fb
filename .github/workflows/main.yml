@@ -8,10 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       firebird:
-        image: jacobalberty/firebird:v5.0
-        env:
-          ISC_PASSWORD: masterkey
-          EnableWireCrypt: "true"
+        image: firebirdsql/firebird:latest
+        env:    
           FIREBIRD_DATABASE: "test.fdb"
         ports:
           - 3050:3050

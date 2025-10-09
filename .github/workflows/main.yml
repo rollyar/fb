@@ -34,29 +34,20 @@ jobs:
             libreadline-dev libyaml-dev libxml2-dev libxslt1-dev libcurl4-openssl-dev \
             software-properties-common libffi-dev firebird3.0-server firebird-dev libfbclient2
       
-      - name: Configure Firebird
+      - name: Configure Firebird and create database
         run: |
-          sudo sed -i 's/#WireCrypt = Enabled/WireCrypt = Enabled/' /etc/firebird/3.0/firebird.conf
-          sudo sed -i 's/RemoteBindAddress = localhost/RemoteBindAddress = 0.0.0.0/' /etc/firebird/3.0/firebird.conf
-          sudo sed -i 's/#AuthServer = Srp256, Srp, Win_Sspi, Legacy_Auth/AuthServer = Legacy_Auth, Srp256, Srp/' /etc/firebird/3.0/firebird.conf
-          sudo sed -i 's/#AuthClient = Srp256, Srp, Win_Sspi, Legacy_Auth/AuthClient = Legacy_Auth, Srp256, Srp/' /etc/firebird/3.0/firebird.conf
-          sudo sed -i 's/#UserManager = Srp/UserManager = Legacy_UserManager, Srp/' /etc/firebird/3.0/firebird.conf
-          echo "SYSDBA:masterkey" | sudo tee /etc/firebird/3.0/SYSDBA.password
-          sudo chown firebird:firebird /etc/firebird/3.0/SYSDBA.password
-          sudo chmod 600 /etc/firebird/3.0/SYSDBA.password
+          # Configurar Firebird
+          sudo sed -i 's/RemoteBindAddress = localhost/# RemoteBindAddress = localhost/' /etc/firebird/3.0/firebird.conf
           sudo systemctl restart firebird3.0
           sleep 5
-      
-      - name: Create test database
-        run: |
-          cat > /tmp/create_db.sql << EOF
-                  CREATE DATABASE 'localhost:/tmp/test.fdb' 
-                  USER 'SYSDBA' PASSWORD 'masterkey' 
-                  PAGE_SIZE 8192 DEFAULT CHARACTER SET UTF8;
-                  QUIT;
-          EOF
-          isql-fb -i /tmp/create_db.sql
+          # Crear base de datos como usuario firebird
+          sudo -u firebird /usr/lib/x86_64-linux-gnu/firebird/3.0/bin/isql-fb -user SYSDBA -password masterkey << 'EOF' || true
+                            CREATE DATABASE '/tmp/test.fdb';
+                            QUIT;
+                          EOF
+          # Dar permisos
           sudo chmod 666 /tmp/test.fdb
+          ls -la /tmp/test.fdb
       
       - name: Verify Firebird is running
         run: |
@@ -72,6 +63,6 @@ jobs:
       - name: Run tests
         run: bundle exec rake test
         env:
-          FB_TEST_DATABASE: "localhost:/tmp/test.fdb"
+          FB_TEST_DATABASE: "/tmp/test.fdb"
           FB_TEST_USER: "SYSDBA"
           FB_TEST_PASSWORD: "masterkey"

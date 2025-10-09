@@ -4,9 +4,28 @@ on:
     branches:
       - master
   pull_request:
+
 jobs:
   build:
     name: Ruby ${{ matrix.ruby }} Rails ${{ matrix.rails }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    services:
+      firebird:
+        image: jacobalberty/firebird:v3.0
+        env:
+          FIREBIRD_DATABASE: test.fdb
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: masterkey
+          ISC_PASSWORD: masterkey
+        ports:
+          - 3050:3050
+        options: >-
+          --health-cmd "echo 'SELECT 1 FROM RDB\$DATABASE;' | isql-fb -user SYSDBA -password masterkey localhost:test.fdb || exit 0"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     strategy:
       matrix:
         os:
@@ -17,7 +36,7 @@ jobs:
           # - "5.latest"
           # - "6.latest"
           - "7.latest"
-    runs-on: ${{ matrix.os }}
+    
     steps:
       - uses: actions/checkout@v3
       
@@ -32,27 +51,25 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y git-core zlib1g-dev build-essential libssl-dev \
             libreadline-dev libyaml-dev libxml2-dev libxslt1-dev libcurl4-openssl-dev \
-            software-properties-common libffi-dev firebird3.0-server firebird-dev libfbclient2
+            software-properties-common libffi-dev firebird-dev libfbclient2
       
-      - name: Configure Firebird and create database
+      - name: Wait for Firebird to be ready
         run: |
-          # Configurar Firebird
-          sudo sed -i 's/RemoteBindAddress = localhost/# RemoteBindAddress = localhost/' /etc/firebird/3.0/firebird.conf
-          sudo systemctl restart firebird3.0
-          sleep 5
-          # Crear base de datos como usuario firebird
-          sudo -u firebird /usr/lib/x86_64-linux-gnu/firebird/3.0/bin/isql-fb -user SYSDBA -password masterkey << 'EOF' || true
-                            CREATE DATABASE '/tmp/test.fdb';
-                            QUIT;
-                          EOF
-          # Dar permisos
-          sudo chmod 666 /tmp/test.fdb
-          ls -la /tmp/test.fdb
+          echo "Waiting for Firebird to be ready..."
+          for i in {1..30}; do
+            if nc -z localhost 3050; then
+              echo "Firebird is ready!"
+              sleep 5
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
       
-      - name: Verify Firebird is running
+      - name: Verify Firebird connection
         run: |
-          ps aux | grep firebird
-          echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb localhost:/tmp/test.fdb -u SYSDBA -p masterkey
+          sudo apt-get install -y firebird3.0-utils
+          echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost:test.fdb || echo "Database may not exist yet, will be created by tests"
       
       - name: Compile and install gem
         run: bundle exec rake install 
@@ -63,6 +80,6 @@ jobs:
       - name: Run tests
         run: bundle exec rake test
         env:
-          FB_TEST_DATABASE: "/tmp/test.fdb"
+          FB_TEST_DATABASE: "localhost:test.fdb"
           FB_TEST_USER: "SYSDBA"
           FB_TEST_PASSWORD: "masterkey"

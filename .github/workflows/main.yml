@@ -19,6 +19,7 @@ jobs:
       firebird:
         image: firebirdsql/firebird.latest
         env:
+          ISC_PASSWORD: masterkey
           FIREBIRD_ROOT_PASSWORD: masterkey
           FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey

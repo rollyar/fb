@@ -70,10 +70,12 @@ jobs:
           echo "❌ Firebird failed to respond after 30 attempts"
           exit 1
 
-      - name: Setup Firebird database directory
+      - name: Get Firebird container name
         run: |
-          docker exec firebird mkdir -p /firebird/data
-          docker exec firebird chown -R firebird:firebird /firebird/data
+          CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird" --format "{{.Names}}" | head -1)
+          echo "Container: $CONTAINER_NAME"
+          docker exec $CONTAINER_NAME mkdir -p /firebird/data
+          docker exec $CONTAINER_NAME chown -R firebird:firebird /firebird/data
 
       - name: Run Tests
         env:

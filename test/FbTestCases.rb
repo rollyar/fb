@@ -1,4 +1,5 @@
 require 'fileutils'
+require 'tmpdir'
 include FileUtils
 
 require 'fb'

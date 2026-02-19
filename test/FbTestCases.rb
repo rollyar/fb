@@ -23,6 +23,10 @@ end
 module FbTestCases
   include Fb
 
+  def remote_db?
+    @db_file.to_s.start_with?('/firebird/') || ENV['FIREBIRD_DATA_DIR']
+  end
+
   def setup
     data_dir = ENV['FIREBIRD_DATA_DIR'] || case RUBY_PLATFORM
                                            when /win32/ then 'c:/var/fbdata'

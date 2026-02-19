@@ -2389,6 +2389,15 @@ static VALUE cursor_execute2(VALUE args)
                           1, fb_cursor->o_sqlda);
         fb_error_check(fb_connection->isc_status);
 
+        /* Reallocate output SQLDA if needed to get RETURNING columns */
+        if (fb_cursor->o_sqlda->sqln < fb_cursor->o_sqlda->sqld) {
+                xfree(fb_cursor->o_sqlda);
+                fb_cursor->o_sqlda = sqlda_alloc(fb_cursor->o_sqlda->sqld);
+                isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt, 
+                                  1, fb_cursor->o_sqlda);
+                fb_error_check(fb_connection->isc_status);
+        }
+
         /* Get the number of parameters and reallocate the SQLDA */
         in_params = fb_cursor->i_sqlda->sqld;
         if (fb_cursor->i_sqlda->sqln < in_params) {
@@ -2416,13 +2425,6 @@ static VALUE cursor_execute2(VALUE args)
         /* CASO 1: DML CON RETURNING */
         if (is_dml_with_returning) {
                 cols = fb_cursor->o_sqlda->sqld;
-                if (fb_cursor->o_sqlda->sqln < cols) {
-                        xfree(fb_cursor->o_sqlda);
-                        fb_cursor->o_sqlda = sqlda_alloc(cols);
-                        isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt, 
-                                          1, fb_cursor->o_sqlda);
-                        fb_error_check(fb_connection->isc_status);
-                }
 
                 if (in_params) {
                         fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(args), 

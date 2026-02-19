@@ -29,7 +29,8 @@ module FbTestCases
                                            when /darwin/ then __dir__
                                            else '/tmp'
                                            end
-    @db_file = File.join(data_dir, 'drivertest.fdb')
+    test_name = "#{$$}_#{@name || 'test'}"
+    @db_file = File.join(data_dir, "drivertest_#{test_name}.fdb")
     @db_host = ENV['FIREBIRD_HOST'] || 'localhost'
     @username = ENV['FIREBIRD_USER'] || 'sysdba'
     @password = ENV['FIREBIRD_PASSWORD'] || 'masterkey'
@@ -42,6 +43,13 @@ module FbTestCases
     }
     @parms_s = "database = #{@db_host}:#{@db_file}; username = #{@username}; password = #{@password}; charset = NONE; role = READER;"
     @fb_version = -1
+
+    begin
+      db = Fb::Database.new(@parms)
+      db.drop if File.exist?(@db_file)
+    rescue StandardError
+    end
+
     rm_rf @db_file
     rm_rf "#{@db_file}.fdb"
 

@@ -1,25 +1,25 @@
 require 'rubygems'
 
 Gem::Specification.new do |s|
-  s.name = "fb"
-  s.version = "0.10.0"
-  s.date = "2025-09-03"
-  s.summary = "Firebird database driver"
-  s.description = "Ruby Firebird Extension Library"
-  s.licenses = ["MIT"]
-  s.requirements = "Firebird client library fbclient.dll, libfbclient.so or Firebird.framework."
+  s.name = 'fb'
+  s.version = '0.10.1'
+  s.summary = 'Firebird database driver'
+  s.description = 'Ruby Firebird Extension Library with RETURNING support'
+  s.licenses = ['MIT']
+  s.requirements = 'Firebird client library fbclient.dll, libfbclient.so or Firebird.framework.'
   s.require_path = '.'
-  s.author = "Brent Rowland"
-  s.email = "rowland@rowlandresearch.com"
-  s.homepage = "http://github.com/rowland/fb"
-  s.test_file = "test/FbTestSuite.rb"
+  s.author = 'Brent Rowland'
+  s.email = 'rowland@rowlandresearch.com'
+  s.homepage = 'http://github.com/rowland/fb'
+  s.test_file = 'test/FbTestSuite.rb'
   s.extra_rdoc_files = ['README']
   s.rdoc_options << '--title' << 'Fb -- Ruby Firebird Extension' << '--main' << 'README' << '-x' << 'test'
-  s.files = ['extconf.rb', 'fb.c', 'README', 'fb_extensions.rb'] + Dir.glob("test/*.rb")
+  s.files = ['extconf.rb', 'fb.c', 'README', 'fb_extensions.rb'] + Dir.glob('test/*.rb')
   s.platform = case RUBY_PLATFORM
-    when /win32/ then Gem::Platform::WIN32
-  else
-    Gem::Platform::RUBY
-  end
+               when /win32/ then Gem::Platform::WIN32
+               else
+                 Gem::Platform::RUBY
+               end
   s.extensions = ['extconf.rb'] if s.platform == Gem::Platform::RUBY
+  s.add_runtime_dependency 'minitest', '>= 5.0'
 end

@@ -7,3 +7,9 @@
 Makefile
 tags
 fb.bundle
+*.bundle
+*.backup
+mkmf.log
+mkmf.cmd
+tmp/
+.rb-lsp/

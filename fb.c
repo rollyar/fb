@@ -2422,6 +2422,11 @@ static VALUE cursor_execute2(VALUE args)
         is_dml_with_returning = is_dml_statement(statement_type) && 
                                 (fb_cursor->o_sqlda->sqld > 0);
 
+        /* Debug: print statement type and output columns */
+        printf("DEBUG: statement_type=%ld, is_dml=%d, o_sqlda->sqld=%d, is_dml_with_returning=%d\n", 
+               statement_type, is_dml_statement(statement_type), 
+               (int)fb_cursor->o_sqlda->sqld, is_dml_with_returning);
+
         /* CASO 1: DML CON RETURNING */
         if (is_dml_with_returning) {
                 cols = fb_cursor->o_sqlda->sqld;

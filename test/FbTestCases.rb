@@ -24,12 +24,12 @@ module FbTestCases
   include Fb
 
   def setup
-    @db_file = case RUBY_PLATFORM
-               when /win32/ then 'c:/var/fbdata/drivertest.fdb'
-               when /darwin/ then File.join(__dir__, 'drivertest.fdb')
-               when /linux/ then File.join(Dir.tmpdir, 'drivertest.fdb')
-               else '/var/fbdata/drivertest.fdb'
-               end
+    data_dir = ENV['FIREBIRD_DATA_DIR'] || case RUBY_PLATFORM
+                                           when /win32/ then 'c:/var/fbdata'
+                                           when /darwin/ then __dir__
+                                           else '/tmp'
+                                           end
+    @db_file = File.join(data_dir, 'drivertest.fdb')
     @db_host = ENV['FIREBIRD_HOST'] || 'localhost'
     @username = ENV['FIREBIRD_USER'] || 'sysdba'
     @password = ENV['FIREBIRD_PASSWORD'] || 'masterkey'

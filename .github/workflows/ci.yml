@@ -70,10 +70,16 @@ jobs:
           echo "❌ Firebird failed to respond after 30 attempts"
           exit 1
 
+      - name: Setup Firebird database directory
+        run: |
+          docker exec firebird mkdir -p /firebird/data
+          docker exec firebird chown -R firebird:firebird /firebird/data
+
       - name: Run Tests
         env:
           FIREBIRD_HOST: localhost
           FIREBIRD_PORT: 3050
           FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey
+          FIREBIRD_DATA_DIR: /firebird/data
         run: ruby -Ilib:test test/FbTestSuite.rb --verbose

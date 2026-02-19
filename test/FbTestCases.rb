@@ -46,8 +46,15 @@ module FbTestCases
 
     begin
       db = Fb::Database.new(@parms)
-      db.drop if File.exist?(@db_file)
+      begin
+        db.drop
+      rescue StandardError
+        nil
+      end
+    rescue Fb::Error
+      # Database might not exist, that's OK
     rescue StandardError
+      # Ignore other errors during cleanup
     end
 
     rm_rf @db_file

@@ -2456,10 +2456,11 @@ static VALUE cursor_execute2(VALUE args)
 
                 result = fb_cursor_fetch_returning(fb_cursor, fb_connection);
 
-                /* Close the cursor */
+                /* Drop the statement completely - need to reprepare for next execute */
                 isc_dsql_free_statement(fb_connection->isc_status, 
-                                        &fb_cursor->stmt, DSQL_close);
+                                        &fb_cursor->stmt, DSQL_drop);
                 fb_error_check(fb_connection->isc_status);
+                memset(&fb_cursor->stmt, 0, sizeof(fb_cursor->stmt));
                 fb_cursor->open = Qfalse;
 
                 if (NIL_P(result)) {

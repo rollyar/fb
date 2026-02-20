@@ -2539,6 +2539,7 @@ static VALUE cursor_execute2(VALUE args)
  */
 static VALUE cursor_execute(int argc, VALUE* argv, VALUE self)
 {
+	printf("DEBUG: cursor_execute called\n");
 	struct FbCursor *fb_cursor;
 	struct FbConnection *fb_connection;
 	VALUE args;

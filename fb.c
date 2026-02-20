@@ -2420,6 +2420,8 @@ static VALUE cursor_execute2(VALUE args)
                 }
         }
 
+        printf("DEBUG cursor_execute2: args=%d\n", (int)RARRAY_LEN(args));
+
         /* RETURNING: Check SQL for "returning" keyword and DML statement type */
         {
                 int has_returning = 0;

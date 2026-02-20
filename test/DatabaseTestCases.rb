@@ -6,20 +6,8 @@ class DatabaseTestCases < FbTestCase
   def setup
     super
     @database = "localhost:#{@db_file}"
-    @reader = {
-      database: "localhost:#{@db_file}",
-      username: 'rubytest',
-      password: 'rubytest',
-      charset: 'NONE',
-      role: 'READER'
-    }
-    @writer = {
-      database: "localhost:#{@db_file}",
-      username: 'rubytest',
-      password: 'rubytest',
-      charset: 'NONE',
-      role: 'WRITER'
-    }
+    @reader = @parms.merge(role: 'reader')
+    @writer = @parms.merge(role: 'writer')
   end
 
   def test_new
@@ -151,26 +139,28 @@ class DatabaseTestCases < FbTestCase
   end
 
   def test_role_support
-    skip 'Requires creating Firebird users which needs SYSDBA and special server config'
     Database.create(@parms) do |connection|
       connection.execute('create table test (id int, test varchar(10))')
       connection.execute('create role writer')
       connection.execute('create role reader')
       connection.execute('grant all on test to writer')
       connection.execute('grant all on test to reader')
-      connection.execute('grant writer to rubytest')
-      connection.execute('grant reader to rubytest')
       connection.commit
       connection.execute("insert into test values (1, 'test role')")
     end
-    Database.connect(@reader) do |connection|
+
+    reader_params = @parms.merge(role: 'reader')
+    writer_params = @parms.merge(role: 'writer')
+
+    Database.connect(reader_params) do |connection|
       assert_raises Error do
         connection.execute('select * from test') do |_cursor|
           flunk 'Should not reach here.'
         end
       end
     end
-    Database.connect(@writer) do |connection|
+
+    Database.connect(writer_params) do |connection|
       connection.execute('select * from test') do |cursor|
         row = cursor.fetch :hash
         assert_equal 1, row['ID']

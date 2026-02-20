@@ -2378,9 +2378,6 @@ static VALUE cursor_execute2(VALUE args)
         } else {
                 statement_type = 0;
         }
-        
-        /* DEBUG - show statement type BEFORE describe */
-        printf("DEBUG2: sql=[%s], statement_type=%ld\n", sql, statement_type);
 
         /* Describe the parameters */
         isc_dsql_describe_bind(fb_connection->isc_status, &fb_cursor->stmt, 
@@ -2422,9 +2419,18 @@ static VALUE cursor_execute2(VALUE args)
         }
 
         /* DETERMINAR SI ES DML CON RETURNING */
-        /* Firebird reports INSERT/UPDATE/DELETE with RETURNING as type 1 (SELECT) */
-        /* because they now return a result set. So we check o_sqlda->sqld > 0 instead */
-        is_dml_with_returning = (statement_type > 0) && 
+        /* Firebird reports:
+         * - INSERT without RETURNING: type 1, sqld=0
+         * - INSERT with RETURNING: type 1, sqld>0
+         * - UPDATE without RETURNING: type 2, sqld=0  
+         * - UPDATE with RETURNING: type 2, sqld>0
+         * - DELETE without RETURNING: type 4, sqld=0
+         * - DELETE with RETURNING: type 4, sqld>0
+         * - SELECT: type 1, sqld>0
+         * So we detect DML with RETURNING by checking:
+         *   (is_dml OR type=1) AND sqld > 0
+         */
+        is_dml_with_returning = (is_dml_statement(statement_type) || statement_type == 1) && 
                                 (fb_cursor->o_sqlda->sqld > 0);
 
         /* CASO 1: DML CON RETURNING */

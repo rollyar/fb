@@ -2425,15 +2425,15 @@ static VALUE cursor_execute2(VALUE args)
         /* RETURNING: Check SQL for "returning" keyword and DML statement type */
         {
                 int has_returning = 0;
-                if (sql != NULL) {
+                if (sql != NULL && strlen(sql) > 0) {
                         char *sql_lower = strdup(sql);
                         char *p;
                         for (p = sql_lower; *p; p++) *p = tolower(*p);
                         has_returning = (strstr(sql_lower, "returning") != NULL);
                         free(sql_lower);
                 }
-                
-                printf("DEBUG: returning=%d is_dml=%d stmt_type=%ld\n", has_returning, is_dml_statement(statement_type), statement_type);
+        
+                printf("DEBUG: returning=%d is_dml=%d stmt_type=%ld sql_len=%zu\n", has_returning, is_dml_statement(statement_type), statement_type, sql ? strlen(sql) : 0);
                 
                 if (has_returning && is_dml_statement(statement_type)) {
                         /* RETURNING case - execute and fetch immediately */

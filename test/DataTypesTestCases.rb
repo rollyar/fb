@@ -117,6 +117,10 @@ class DataTypesTestCases < FbTestCase
         values
         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     END
+    sql_sum = 'select sum(INT_COL), sum(SMALLINT_COL), sum(BIGINT_COL), sum(FLOAT_COL), sum(DOUBLE_COL), sum(N92), sum(D92) from TEST'
+    sql_avg = 'select avg(INT_COL), avg(SMALLINT_COL), avg(BIGINT_COL), avg(FLOAT_COL), avg(DOUBLE_COL), avg(N92), avg(D92) from TEST'
+    sql_max = 'select max(INT_COL), max(SMALLINT_COL), max(BIGINT_COL), max(FLOAT_COL), max(DOUBLE_COL), max(N92), max(D92) from TEST'
+    sql_min = 'select min(INT_COL), min(SMALLINT_COL), min(BIGINT_COL), min(FLOAT_COL), min(DOUBLE_COL), min(N92), min(D92) from TEST'
     sql_select = 'select * from TEST order by INT_COL'
     Database.create(@parms) do |connection|
       connection.execute(sql_schema)

@@ -95,11 +95,11 @@ class DataTypesTestCases < FbTestCase
   def test_insert_basic_types
     sql_schema = <<-END
       create table TEST (
-        I INTEGER,
-        SI SMALLINT,
-        BI BIGINT,
-        F FLOAT,
-        D DOUBLE PRECISION,
+        INT_COL INTEGER,
+        SMALLINT_COL SMALLINT,
+        BIGINT_COL BIGINT,
+        FLOAT_COL FLOAT,
+        DOUBLE_COL DOUBLE PRECISION,
         C CHAR,
         C10 CHAR(10),
         VC VARCHAR(1),
@@ -113,15 +113,15 @@ class DataTypesTestCases < FbTestCase
     END
     sql_insert = <<-END
       insert into test#{' '}
-        (I, SI, BI, F, D, C, C10, VC, VC10, VC10000, DT, TM, TS, N92, D92)
+        (INT_COL, SMALLINT_COL, BIGINT_COL, FLOAT_COL, DOUBLE_COL, C, C10, VC, VC10, VC10000, DT, TM, TS, N92, D92)
         values
         (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     END
-    sql_select = 'select * from TEST order by I'
-    sql_sum = 'select sum(I), sum(SI), sum(BI), sum(F), sum(D), sum(N92), sum(D92) from TEST'
-    sql_avg = 'select avg(I), avg(SI), avg(BI), avg(F), avg(D), avg(N92), avg(D92) from TEST'
-    sql_max = 'select max(I), max(SI), max(BI), max(F), max(D), max(N92), max(D92) from TEST'
-    sql_min = 'select min(I), min(SI), min(BI), min(F), min(D), min(N92), min(D92) from TEST'
+    sql_select = 'select * from TEST order by INT_COL'
+    sql_sum = 'select sum(INT_COL), sum(SMALLINT_COL), sum(BIGINT_COL), sum(FLOAT_COL), sum(DOUBLE_COL), sum(N92), sum(D92) from TEST'
+    sql_avg = 'select avg(INT_COL), avg(SMALLINT_COL), avg(BIGINT_COL), avg(FLOAT_COL), avg(DOUBLE_COL), avg(N92), avg(D92) from TEST'
+    sql_max = 'select max(INT_COL), max(SMALLINT_COL), max(BIGINT_COL), max(FLOAT_COL), max(DOUBLE_COL), max(N92), max(D92) from TEST'
+    sql_min = 'select min(INT_COL), min(SMALLINT_COL), min(BIGINT_COL), min(FLOAT_COL), min(DOUBLE_COL), min(N92), min(D92) from TEST'
     Database.create(@parms) do |connection|
       connection.execute(sql_schema)
       connection.transaction do
@@ -139,11 +139,11 @@ class DataTypesTestCases < FbTestCase
       connection.execute(sql_select) do |cursor|
         i = 0
         cursor.each :hash do |row|
-          assert_equal gen_i(i), row['I'], 'INTEGER'
-          assert_equal gen_si(i), row['SI'], 'SMALLINT'
-          assert_equal gen_bi(i), row['BI'], 'BIGINT'
-          assert_equal gen_f(i), row['F'], 'FLOAT'
-          assert_equal gen_d(i), row['D'], 'DOUBLE PRECISION'
+          assert_equal gen_i(i), row['INT_COL'], 'INTEGER'
+          assert_equal gen_si(i), row['SMALLINT_COL'], 'SMALLINT'
+          assert_equal gen_bi(i), row['BIGINT_COL'], 'BIGINT'
+          assert_equal gen_f(i), row['FLOAT_COL'], 'FLOAT'
+          assert_equal gen_d(i), row['DOUBLE_COL'], 'DOUBLE PRECISION'
           assert_equal gen_c(i), row['C'], 'CHAR'
           assert_equal gen_c10(i).ljust(10), row['C10'], 'CHAR(10)'
           assert_equal gen_vc(i), row['VC'], 'VARCHAR(1)'

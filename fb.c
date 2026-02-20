@@ -2419,19 +2419,14 @@ static VALUE cursor_execute2(VALUE args)
         }
 
         /* DETERMINAR SI ES DML CON RETURNING */
-        /* Firebird reports:
-         * - INSERT without RETURNING: type 1, sqld=0
-         * - INSERT with RETURNING: type 1, sqld>0
-         * - UPDATE without RETURNING: type 2, sqld=0  
+        /* Need to check SQL for RETURNING keyword because:
+         * - Regular SELECT: type 1, sqld>0
+         * - INSERT with RETURNING: type 1, sqld>0  
          * - UPDATE with RETURNING: type 2, sqld>0
-         * - DELETE without RETURNING: type 4, sqld=0
          * - DELETE with RETURNING: type 4, sqld>0
-         * - SELECT: type 1, sqld>0
-         * So we detect DML with RETURNING by checking:
-         *   (is_dml OR type=1) AND sqld > 0
          */
-        is_dml_with_returning = (is_dml_statement(statement_type) || statement_type == 1) && 
-                                (fb_cursor->o_sqlda->sqld > 0);
+        has_returning_clause = (strstr(sql, "RETURNING") != NULL);
+        is_dml_with_returning = is_dml_statement(statement_type) && has_returning_clause;
 
         /* CASO 1: DML CON RETURNING */
         if (is_dml_with_returning) {
@@ -2461,6 +2456,7 @@ static VALUE cursor_execute2(VALUE args)
 
                 result = fb_cursor_fetch_returning(fb_cursor, fb_connection);
 
+                /* Close the cursor */
                 isc_dsql_free_statement(fb_connection->isc_status, 
                                         &fb_cursor->stmt, DSQL_close);
                 fb_error_check(fb_connection->isc_status);

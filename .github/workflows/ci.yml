@@ -13,7 +13,7 @@ jobs:
 
     services:
       firebird:
-        image: firebirdsql/firebird:4.0.6
+        image: firebirdsql/firebird:4
         env:
           FIREBIRD_ROOT_PASSWORD: masterkey
         options: >-
@@ -72,7 +72,10 @@ jobs:
 
       - name: Get Firebird container name
         run: |
-          CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird" --format "{{.Names}}" | head -1)
+          CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird:4" --format "{{.Names}}" | head -1)
+          if [ -z "$CONTAINER_NAME" ]; then
+            CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird" --format "{{.Names}}" | head -1)
+          fi
           echo "Container: $CONTAINER_NAME"
           docker exec $CONTAINER_NAME mkdir -p /firebird/data
           docker exec $CONTAINER_NAME chown -R firebird:firebird /firebird/data

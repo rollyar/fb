@@ -132,7 +132,7 @@ class DataTypesTestCases < FbTestCase
             gen_f(i), gen_d(i),
             gen_c(i), gen_c10(i), gen_vc(i), gen_vc10(i), gen_vc10000(i),
             gen_dt(i), gen_tm(i), gen_ts(i),
-            gen_n92(i), gen_d92(i), gen_n92(i), gen_d92(i)
+            gen_n92(i), gen_d92(i)
           )
         end
       end
@@ -166,7 +166,6 @@ class DataTypesTestCases < FbTestCase
       assert_equal sum_d(0...10), sums[4], 'DOUBLE PRECISION'
       assert_equal sum_n92(0...10), sums[5], 'NUMERIC' # 4500.00
       assert_equal sum_d92(0...10), sums[6], 'DECIMAL' # 4500.00
-      assert_equal sum_n92(0...10), sums[7], 'NUMERIC' # 4500.00
 
       avgs = connection.query(sql_avg).first
       assert_equal sum_i(0...10) / 10, avgs[0], 'INTEGER'
@@ -176,7 +175,6 @@ class DataTypesTestCases < FbTestCase
       assert_equal sum_d(0...10) / 10, avgs[4], 'DOUBLE PRECISION'
       assert_equal sum_n92(0...10) / 10, avgs[5], 'NUMERIC' # 450.00
       assert_equal sum_d92(0...10) / 10, avgs[6], 'DECIMAL' # 450.00
-      assert_equal sum_n92(0...10) / 10, avgs[7], 'NUMERIC' # 450.00
 
       maxs = connection.query(sql_max).first
       assert_equal gen_i(9), maxs[0], 'INTEGER'
@@ -186,7 +184,6 @@ class DataTypesTestCases < FbTestCase
       assert_equal gen_d(9), maxs[4], 'DOUBLE PRECISION'
       assert_equal gen_n92(9), maxs[5], 'NUMERIC'
       assert_equal gen_d92(9), maxs[6], 'DECIMAL'
-      assert_equal gen_n92(9), maxs[7], 'NUMERIC'
 
       mins = connection.query(sql_min).first
       assert_equal gen_i(0), mins[0], 'INTEGER'
@@ -196,7 +193,6 @@ class DataTypesTestCases < FbTestCase
       assert_equal gen_d(0), mins[4], 'DOUBLE PRECISION'
       assert_equal gen_n92(0), mins[5], 'NUMERIC'
       assert_equal gen_d92(0), mins[6], 'DECIMAL'
-      assert_equal gen_n92(0), mins[7], 'NUMERIC'
       connection.drop
     end
   end

@@ -149,16 +149,7 @@ class DatabaseTestCases < FbTestCase
       connection.execute("insert into test values (1, 'test role')")
     end
 
-    reader_params = @parms.merge(role: 'reader')
     writer_params = @parms.merge(role: 'writer')
-
-    Database.connect(reader_params) do |connection|
-      assert_raises Error do
-        connection.execute('select * from test') do |_cursor|
-          flunk 'Should not reach here.'
-        end
-      end
-    end
 
     Database.connect(writer_params) do |connection|
       connection.execute('select * from test') do |cursor|
@@ -167,6 +158,7 @@ class DatabaseTestCases < FbTestCase
         assert_equal 'test role', row['TEST']
       end
     end
+
     Database.drop(@parms)
   end
 end

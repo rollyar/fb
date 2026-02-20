@@ -2420,8 +2420,6 @@ static VALUE cursor_execute2(VALUE args)
                 }
         }
 
-        printf("DEBUG cursor_execute2: args=%d\n", (int)RARRAY_LEN(args));
-
         /* RETURNING: Check SQL for "returning" keyword and DML statement type */
         {
                 int has_returning = 0;
@@ -2429,11 +2427,8 @@ static VALUE cursor_execute2(VALUE args)
                         char *sql_lower = strdup(sql);
                         char *p;
                         for (p = sql_lower; *p; p++) *p = tolower(*p);
-                        has_returning = (strstr(sql_lower, "returning") != NULL);
-                        free(sql_lower);
-                }
-        
-                printf("DEBUG: returning=%d is_dml=%d stmt_type=%ld sql_len=%zu\n", has_returning, is_dml_statement(statement_type), statement_type, sql ? strlen(sql) : 0);
+                has_returning = (strstr(sql_lower, "returning") != NULL);
+                free(sql_lower);
                 
                 if (has_returning && is_dml_statement(statement_type)) {
                         /* RETURNING case - execute and fetch immediately */
@@ -2539,7 +2534,6 @@ static VALUE cursor_execute2(VALUE args)
  */
 static VALUE cursor_execute(int argc, VALUE* argv, VALUE self)
 {
-	printf("DEBUG: cursor_execute called\n");
 	struct FbCursor *fb_cursor;
 	struct FbConnection *fb_connection;
 	VALUE args;

@@ -2425,7 +2425,7 @@ static VALUE cursor_execute2(VALUE args)
          * - UPDATE with RETURNING: type 2, sqld>0
          * - DELETE with RETURNING: type 4, sqld>0
          */
-        has_returning_clause = (strstr(sql, "RETURNING") != NULL);
+        int has_returning_clause = (strstr(sql, "RETURNING") != NULL);
         is_dml_with_returning = is_dml_statement(statement_type) && has_returning_clause;
 
         /* CASO 1: DML CON RETURNING */

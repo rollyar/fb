@@ -99,7 +99,7 @@ class DataTypesTestCases < FbTestCase
         SMALLINT_COL SMALLINT,
         BIGINT_COL BIGINT,
         FLOAT_COL FLOAT,
-        DOUBLE_COL DOUBLE,
+        DOUBLE_COL DOUBLE PRECISION,
         C CHAR,
         C10 CHAR(10),
         VC VARCHAR(1),

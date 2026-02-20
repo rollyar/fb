@@ -13,7 +13,7 @@ class ReturningTestCases < FbTestCase
       result = connection.execute(sql_insert, 'John')
 
       unless result.is_a?(Hash) && result.key?(:returning)
-        return skip("RETURNING not working - got #{result.class}: #{result.inspect}")
+        skip("RETURNING not working - got #{result.class}: #{result.inspect}")
       end
 
       assert_instance_of Hash, result
@@ -41,7 +41,7 @@ class ReturningTestCases < FbTestCase
 
       result = connection.execute(sql_insert, 'Jane')
 
-      return skip("RETURNING not working - got #{result.class}") unless result.is_a?(Hash) && result.key?(:returning)
+      skip("RETURNING not working - got #{result.class}") unless result.is_a?(Hash) && result.key?(:returning)
 
       assert_instance_of Hash, result
 
@@ -63,7 +63,7 @@ class ReturningTestCases < FbTestCase
 
       result = connection.execute(sql_insert, 'John', 'john@example.com')
 
-      return skip('RETURNING not working') unless result.is_a?(Hash)
+      skip('RETURNING not working') unless result.is_a?(Hash)
 
       assert_equal 1, result[:rows_affected]
 
@@ -88,7 +88,7 @@ class ReturningTestCases < FbTestCase
 
       result = connection.execute(sql_update, 'New Name', 1)
 
-      return skip('RETURNING not working') unless result.is_a?(Hash)
+      skip('RETURNING not working') unless result.is_a?(Hash)
 
       assert_instance_of Hash, result
       assert_equal 1, result[:rows_affected]
@@ -110,7 +110,7 @@ class ReturningTestCases < FbTestCase
 
       result = connection.execute(sql_update, 'New Name', 'active', 1)
 
-      return skip('RETURNING not working') unless result.is_a?(Hash)
+      skip('RETURNING not working') unless result.is_a?(Hash)
 
       assert_equal 1, result[:rows_affected]
 
@@ -131,7 +131,7 @@ class ReturningTestCases < FbTestCase
 
       result = connection.execute(sql_update, 'New Name', 999)
 
-      return skip('RETURNING not working') unless result.is_a?(Hash)
+      skip('RETURNING not working') unless result.is_a?(Hash)
 
       assert_equal 0, result[:rows_affected]
 
@@ -153,7 +153,7 @@ class ReturningTestCases < FbTestCase
 
       result = connection.execute(sql_delete, 1)
 
-      return skip('RETURNING not working') unless result.is_a?(Hash)
+      skip('RETURNING not working') unless result.is_a?(Hash)
 
       assert_equal 1, result[:rows_affected]
 
@@ -179,7 +179,7 @@ class ReturningTestCases < FbTestCase
 
       result = connection.execute(sql_delete, 1)
 
-      return skip('RETURNING not working') unless result.is_a?(Hash)
+      skip('RETURNING not working') unless result.is_a?(Hash)
 
       returning = result[:returning]
       assert_equal 2, returning.size

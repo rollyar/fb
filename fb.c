@@ -2166,11 +2166,11 @@ static long cursor_rows_affected(struct FbCursor *fb_cursor, long statement_type
 // PATCH: RETURNING SUPPORT
 
 /* Determina si el tipo de statement es DML (INSERT, UPDATE, DELETE) */
+/* Firebird returns: INSERT=1, UPDATE=2, DELETE=3, or 4 for some cases */
 static int is_dml_statement(long statement_type)
 {
-        return (statement_type == isc_info_sql_stmt_insert ||
-                statement_type == isc_info_sql_stmt_update ||
-                statement_type == isc_info_sql_stmt_delete);
+        return (statement_type == 1 || statement_type == 2 || 
+                statement_type == 3 || statement_type == 4);
 }
 
 /* Prepara el buffer de salida para recibir datos de RETURNING */

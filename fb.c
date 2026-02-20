@@ -2351,7 +2351,6 @@ static VALUE cursor_execute2(VALUE args)
         VALUE result = Qnil;
         char isc_info_buff[16];
         char isc_info_stmt[] = { isc_info_sql_stmt_type };
-        int is_dml_with_returning = 0;
 
         VALUE self = rb_ary_pop(args);
         TypedData_Get_Struct(self, struct FbCursor, &fbcursor_data_type, fb_cursor);
@@ -2427,44 +2426,45 @@ static VALUE cursor_execute2(VALUE args)
                         char *sql_lower = strdup(sql);
                         char *p;
                         for (p = sql_lower; *p; p++) *p = tolower(*p);
-                has_returning = (strstr(sql_lower, "returning") != NULL);
-                free(sql_lower);
-                
-                if (has_returning && is_dml_statement(statement_type)) {
-                        /* RETURNING case - execute and fetch immediately */
-                        if (in_params) {
-                                fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(args), 
-                                                          RARRAY_PTR(args));
-                        }
-
-                        fb_cursor_prepare_output_buffer(fb_cursor);
-
-                        isc_dsql_execute2(fb_connection->isc_status, 
-                                         &fb_connection->transact, 
-                                         &fb_cursor->stmt, 
-                                         SQLDA_VERSION1, 
-                                         in_params ? fb_cursor->i_sqlda : NULL, 
-                                         fb_cursor->o_sqlda);
-                        fb_error_check(fb_connection->isc_status);
-
-                        /* Fetch the RETURNING values */
-                        result = fb_cursor_fetch_returning(fb_cursor, fb_connection);
-
-                        /* Mark cursor as closed - don't close statement here, let cursor_drop handle it */
-                        fb_cursor->open = Qfalse;
-
-                        if (NIL_P(result)) {
-                                result = rb_ary_new();
-                        }
-
-                        rows_affected = cursor_rows_affected(fb_cursor, statement_type);
+                        has_returning = (strstr(sql_lower, "returning") != NULL);
+                        free(sql_lower);
                         
-                        VALUE hash_result = rb_hash_new();
-                        rb_hash_aset(hash_result, ID2SYM(rb_intern("returning")), result);
-                        rb_hash_aset(hash_result, ID2SYM(rb_intern("rows_affected")), 
-                                     INT2NUM((int)rows_affected));
-                        
-                        return hash_result;
+                        if (has_returning && is_dml_statement(statement_type)) {
+                                /* RETURNING case - execute and fetch immediately */
+                                if (in_params) {
+                                        fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(args), 
+                                                                  RARRAY_PTR(args));
+                                }
+
+                                fb_cursor_prepare_output_buffer(fb_cursor);
+
+                                isc_dsql_execute2(fb_connection->isc_status, 
+                                                 &fb_connection->transact, 
+                                                 &fb_cursor->stmt, 
+                                                 SQLDA_VERSION1, 
+                                                 in_params ? fb_cursor->i_sqlda : NULL, 
+                                                 fb_cursor->o_sqlda);
+                                fb_error_check(fb_connection->isc_status);
+
+                                /* Fetch the RETURNING values */
+                                result = fb_cursor_fetch_returning(fb_cursor, fb_connection);
+
+                                /* Mark cursor as closed - don't close statement here, let cursor_drop handle it */
+                                fb_cursor->open = Qfalse;
+
+                                if (NIL_P(result)) {
+                                        result = rb_ary_new();
+                                }
+
+                                rows_affected = cursor_rows_affected(fb_cursor, statement_type);
+                                
+                                VALUE hash_result = rb_hash_new();
+                                rb_hash_aset(hash_result, ID2SYM(rb_intern("returning")), result);
+                                rb_hash_aset(hash_result, ID2SYM(rb_intern("rows_affected")), 
+                                             INT2NUM((int)rows_affected));
+                                
+                                return hash_result;
+                        }
                 }
         }
 

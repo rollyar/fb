@@ -13,7 +13,7 @@ jobs:
 
     services:
       firebird:
-        image: firebirdsql/firebird:4.0.6
+        image: firebirdsql/firebird:latest
         env:
           FIREBIRD_ROOT_PASSWORD: masterkey
         options: >-

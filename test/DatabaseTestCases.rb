@@ -20,6 +20,14 @@ class DatabaseTestCases < FbTestCase
       charset: 'NONE',
       role: 'WRITER'
     }
+
+    begin
+      Fb::Database.new(database: "localhost:#{@db_file}", username: 'SYSDBA', password: 'masterkey').connect do |conn|
+        conn.execute("CREATE USER rubytest PASSWORD 'rubytest'")
+      end
+    rescue StandardError
+      # User might already exist or no permission
+    end
   end
 
   def test_new

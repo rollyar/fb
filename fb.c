@@ -2428,6 +2428,8 @@ static VALUE cursor_execute2(VALUE args)
                 int has_returning = (strstr(sql_lower, "returning") != NULL);
                 free(sql_lower);
                 
+                printf("DEBUG: sql=[%s] returning=%d is_dml=%d\n", sql, has_returning, is_dml_statement(statement_type));
+                
                 if (has_returning && is_dml_statement(statement_type)) {
                         /* RETURNING case - execute and fetch immediately */
                         if (in_params) {

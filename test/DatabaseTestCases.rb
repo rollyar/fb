@@ -162,8 +162,11 @@ class DatabaseTestCases < FbTestCase
     Database.create(@parms) do |connection|
       connection.execute('create table test (id int, test varchar(10))')
       connection.execute('create role writer')
+      connection.execute('create role reader')
       connection.execute('grant all on test to writer')
+      connection.execute('grant reader on test to reader')
       connection.execute('grant writer to rubytest')
+      connection.execute('grant reader to rubytest')
       connection.commit
       connection.execute("insert into test values (1, 'test role')")
     end

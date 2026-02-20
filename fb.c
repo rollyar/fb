@@ -22,6 +22,8 @@
 
 #include "ruby.h"
 
+#include <ctype.h>
+
 #ifdef HAVE_RUBY_REGEX_H
 #  include "ruby/re.h"
 #else
@@ -2419,14 +2421,15 @@ static VALUE cursor_execute2(VALUE args)
         }
 
         /* DETERMINAR SI ES DML CON RETURNING */
-        /* Need to check SQL for RETURNING keyword because:
-         * - Regular SELECT: type 1, sqld>0
-         * - INSERT with RETURNING: type 1, sqld>0  
-         * - UPDATE with RETURNING: type 2, sqld>0
-         * - DELETE with RETURNING: type 4, sqld>0
-         */
-        int has_returning_clause = (strstr(sql, "RETURNING") != NULL);
-        is_dml_with_returning = is_dml_statement(statement_type) && has_returning_clause;
+        /* Check for RETURNING keyword (case-insensitive) */
+        {
+                char *sql_lower = strdup(sql);
+                char *p;
+                for (p = sql_lower; *p; p++) *p = tolower(*p);
+                int has_returning_clause = (strstr(sql_lower, "returning") != NULL);
+                free(sql_lower);
+                is_dml_with_returning = is_dml_statement(statement_type) && has_returning_clause;
+        }
 
         /* CASO 1: DML CON RETURNING */
         if (is_dml_with_returning) {

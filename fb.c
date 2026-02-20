@@ -2450,9 +2450,9 @@ static VALUE cursor_execute2(VALUE args)
 
                 fb_cursor->open = Qtrue;
 
-                fb_cursor->fields_ary = fb_cursor_fields_ary(fb_cursor->o_sqlda, 
-                                                             fb_connection->downcase_names);
-                fb_cursor->fields_hash = fb_cursor_fields_hash(fb_cursor->fields_ary);
+                /* Skip building fields_ary/hash for RETURNING - not needed for result */
+                fb_cursor->fields_ary = Qnil;
+                fb_cursor->fields_hash = Qnil;
 
                 result = fb_cursor_fetch_returning(fb_cursor, fb_connection);
 

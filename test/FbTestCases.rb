@@ -64,10 +64,15 @@ module FbTestCases
     rm_rf @db_file
     rm_rf "#{@db_file}.fdb"
 
-    Database.create(@parms) do |connection|
-      d = connection.query("SELECT substring(rdb$get_context('SYSTEM', 'ENGINE_VERSION') from 1 for 1) from rdb$database")
-      @fb_version = Integer(d.first[0])
-      connection.drop
+    db = Database.create(@parms)
+    connection = db.connect
+    d = connection.query("SELECT substring(rdb$get_context('SYSTEM', 'ENGINE_VERSION') from 1 for 1) from rdb$database")
+    @fb_version = Integer(d.first[0])
+    connection.close
+    begin
+      db.drop
+    rescue StandardError
+      nil
     end
 
     rm_rf @db_file

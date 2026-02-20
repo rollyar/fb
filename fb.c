@@ -2164,16 +2164,11 @@ static long cursor_rows_affected(struct FbCursor *fb_cursor, long statement_type
 // PATCH: RETURNING SUPPORT
 
 /* Determina si el tipo de statement es DML (INSERT, UPDATE, DELETE) */
-// Debug: print actual values of constants
 static int is_dml_statement(long statement_type)
 {
-        // Firebird statement type constants:
-        // 1 = INSERT, 2 = UPDATE, 3 = DELETE, 4 = DELETE (alternative)
-        // We use hardcoded values to avoid header issues
-        return (statement_type == 1 ||  // INSERT
-                statement_type == 2 ||  // UPDATE
-                statement_type == 3 ||  // DELETE
-                statement_type == 4);   // DELETE (alternative)
+        return (statement_type == isc_info_sql_stmt_insert ||
+                statement_type == isc_info_sql_stmt_update ||
+                statement_type == isc_info_sql_stmt_delete);
 }
 
 /* Prepara el buffer de salida para recibir datos de RETURNING */
@@ -2426,6 +2421,11 @@ static VALUE cursor_execute2(VALUE args)
         /* DETERMINAR SI ES DML CON RETURNING */
         is_dml_with_returning = is_dml_statement(statement_type) && 
                                 (fb_cursor->o_sqlda->sqld > 0);
+
+        /* Debug: print statement type and output columns */
+        printf("DEBUG: statement_type=%ld, is_dml=%d, o_sqlda->sqld=%d, is_dml_with_returning=%d\n", 
+               statement_type, is_dml_statement(statement_type), 
+               (int)fb_cursor->o_sqlda->sqld, is_dml_with_returning);
 
         /* CASO 1: DML CON RETURNING */
         if (is_dml_with_returning) {

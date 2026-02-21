@@ -2425,13 +2425,14 @@ static VALUE cursor_execute2(VALUE args)
         {
                 int has_returning = 0;
                 if (sql != NULL && strlen(sql) > 0) {
+                        fprintf(stderr, "DEBUG SQL: [%s]\n", sql);
                         char *sql_lower = strdup(sql);
                         char *p;
                         for (p = sql_lower; *p; p++) *p = tolower(*p);
-                has_returning = (strstr(sql_lower, "returning") != NULL);
-                free(sql_lower);
-                
-                fprintf(stderr, "DEBUG: has_returning=%d, is_dml=%d\n", has_returning, is_dml_statement(statement_type));
+                        fprintf(stderr, "DEBUG SQL lower: [%s]\n", sql_lower);
+                        has_returning = (strstr(sql_lower, "returning") != NULL);
+                        fprintf(stderr, "DEBUG: has_returning=%d, is_dml=%d\n", has_returning, is_dml_statement(statement_type));
+                        free(sql_lower);
                 
                 if (has_returning && is_dml_statement(statement_type)) {
                                 /* RETURNING case - execute and fetch immediately */

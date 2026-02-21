@@ -3107,7 +3107,7 @@ static VALUE database_initialize(int argc, VALUE *argv, VALUE self)
 		rb_iv_set(self, "@charset", default_string(parms, "charset", "NONE"));
 		rb_iv_set(self, "@role", rb_hash_aref(parms, ID2SYM(rb_intern("role"))));
 		rb_iv_set(self, "@downcase_names", rb_hash_aref(parms, ID2SYM(rb_intern("downcase_names"))));
-		rb_iv_set(self, "@encoding", default_string(parms, "encoding", "ASCII-8BIT"));
+		rb_iv_set(self, "@encoding", default_string(parms, "encoding", "UTF-8"));
 		rb_iv_set(self, "@page_size", default_int(parms, "page_size", 4096));
 	}
 	return self;

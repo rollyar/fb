@@ -2166,11 +2166,11 @@ static long cursor_rows_affected(struct FbCursor *fb_cursor, long statement_type
 // PATCH: RETURNING SUPPORT
 
 /* Determina si el tipo de statement es DML (INSERT, UPDATE, DELETE) */
-/* Firebird returns: INSERT=1, UPDATE=2, DELETE=3, or 4 for some cases */
+/* Firebird returns: INSERT=1, UPDATE=2, DELETE=3, INSERT RETURNING=8 */
 static int is_dml_statement(long statement_type)
 {
         return (statement_type == 1 || statement_type == 2 || 
-                statement_type == 3 || statement_type == 4);
+                statement_type == 3 || statement_type == 8);
 }
 
 /* Prepara el buffer de salida para recibir datos de RETURNING */
@@ -2380,8 +2380,6 @@ static VALUE cursor_execute2(VALUE args)
                 statement_type = 0;
         }
 
-        fprintf(stderr, "DEBUG: statement_type=%ld, sqld=%d\n", statement_type, fb_cursor->o_sqlda->sqld);
-
         /* Describe the parameters */
         isc_dsql_describe_bind(fb_connection->isc_status, &fb_cursor->stmt, 
                                1, fb_cursor->i_sqlda);
@@ -2425,13 +2423,10 @@ static VALUE cursor_execute2(VALUE args)
         {
                 int has_returning = 0;
                 if (sql != NULL && strlen(sql) > 0) {
-                        fprintf(stderr, "DEBUG SQL: [%s]\n", sql);
                         char *sql_lower = strdup(sql);
                         char *p;
                         for (p = sql_lower; *p; p++) *p = tolower(*p);
-                        fprintf(stderr, "DEBUG SQL lower: [%s]\n", sql_lower);
                         has_returning = (strstr(sql_lower, "returning") != NULL);
-                        fprintf(stderr, "DEBUG: has_returning=%d, is_dml=%d\n", has_returning, is_dml_statement(statement_type));
                         free(sql_lower);
                 
                 if (has_returning && is_dml_statement(statement_type)) {

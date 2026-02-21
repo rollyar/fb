@@ -2413,7 +2413,25 @@ static VALUE cursor_execute2(VALUE args)
 			 * When caller supplies parameters as an Array of Arrays,
 			 * execute once per inner array (batch mode).
 			 */
-			if (n_params >= 1 && TYPE(RARRAY_PTR(params_ary)[0]) == T_ARRAY) {
+			if (n_params >= 1 && TYPE(RARRAY_PTR(params_ary)[0]) == T_ARRAY &&
+				RARRAY_LEN(RARRAY_PTR(params_ary)[0]) > 0 &&
+				TYPE(RARRAY_PTR(RARRAY_PTR(params_ary)[0])[0]) == T_ARRAY) {
+				VALUE rows_ary = RARRAY_PTR(params_ary)[0];
+				int rows_count = (int)RARRAY_LEN(rows_ary);
+				int i;
+				for (i = 0; i < rows_count; i++) {
+					VALUE row = RARRAY_PTR(rows_ary)[i];
+					Check_Type(row, T_ARRAY);
+					fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(row), RARRAY_PTR(row));
+					isc_dsql_execute2(fb_connection->isc_status,
+					                  &fb_connection->transact,
+					                  &fb_cursor->stmt,
+					                  SQLDA_VERSION1,
+					                  fb_cursor->i_sqlda,
+					                  NULL);
+					fb_error_check(fb_connection->isc_status);
+				}
+			} else if (n_params >= 1 && TYPE(RARRAY_PTR(params_ary)[0]) == T_ARRAY) {
 				int i;
 				for (i = 0; i < n_params; i++) {
 					VALUE row = RARRAY_PTR(params_ary)[i];

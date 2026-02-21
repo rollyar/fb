@@ -2582,7 +2582,9 @@ static VALUE cursor_execute2(VALUE args)
 		                  SQLDA_VERSION1,
 		                  in_params ? fb_cursor->i_sqlda : NULL,
 		                  fb_cursor->o_sqlda);
-		fb_error_check(fb_connection->isc_status);
+		if (isc_sqlcode(fb_connection->isc_status) != SQLCODE_NOMORE) {
+			fb_error_check(fb_connection->isc_status);
+		}
 
 		rows_affected = cursor_rows_affected(fb_cursor, effective_statement_type);
 

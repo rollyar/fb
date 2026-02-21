@@ -2347,6 +2347,31 @@ static VALUE fb_cursor_read_returning(struct FbCursor *fb_cursor, struct FbConne
 	return result;
 }
 
+static int sql_contains_returning_clause(const char *sql)
+{
+	const char *keyword = "returning";
+	const char *p;
+
+	if (sql == NULL) return 0;
+
+	for (p = sql; *p; p++) {
+		int i;
+		for (i = 0; keyword[i]; i++) {
+			if (p[i] == '\0') {
+				return 0;
+			}
+			if (tolower((unsigned char)p[i]) != keyword[i]) {
+				break;
+			}
+		}
+		if (keyword[i] == '\0') {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 /*
  * cursor_execute2 — the core execution function.
  *
@@ -2377,6 +2402,7 @@ static VALUE cursor_execute2(VALUE args)
 	long in_params;
 	long out_cols;
 	long rows_affected;
+	int has_returning_clause;
 	VALUE result = Qnil;
 	char isc_info_buff[16];
 	char isc_info_stmt[] = { isc_info_sql_stmt_type };
@@ -2400,6 +2426,8 @@ static VALUE cursor_execute2(VALUE args)
 	n_params = (int)RARRAY_LEN(params_ary);
 
 	/* Prepare the statement — o_sqlda gets RETURNING columns if present */
+	has_returning_clause = sql_contains_returning_clause(sql);
+
 	isc_dsql_prepare(fb_connection->isc_status, &fb_connection->transact,
 	                 &fb_cursor->stmt, 0, sql,
 	                 fb_connection_dialect(fb_connection),
@@ -2474,7 +2502,7 @@ static VALUE cursor_execute2(VALUE args)
 	 * CASE 2: DML with RETURNING clause
 	 *   Detected by: out_cols > 0 AND not a SELECT statement
 	 * ---------------------------------------------------------------- */
-	else if (out_cols > 0 && statement_type != isc_info_sql_stmt_select) {
+	else if (out_cols > 0 && (statement_type != isc_info_sql_stmt_select || has_returning_clause)) {
 		VALUE returning_row;
 
 		/* Allocate output buffer */

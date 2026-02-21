@@ -2007,7 +2007,14 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					}
 
 					#if HAVE_RUBY_ENCODING_H
-					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
+					/*
+					 * BLOB SUB_TYPE 1 = text: apply connection encoding (UTF-8 by default).
+					 * BLOB SUB_TYPE 0 = binary: keep ASCII-8BIT — applying a text encoding
+					 * to binary data corrupts .size and byte comparisons in Ruby.
+					 */
+					if (var->sqlsubtype == 1) {
+						rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
+					}
 					#endif
 					isc_close_blob(fb_connection->isc_status, &blob_handle);
 					fb_error_check(fb_connection->isc_status);

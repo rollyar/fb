@@ -1683,7 +1683,7 @@ static void fb_cursor_set_inputparams(struct FbCursor *fb_cursor, long argc, VAL
 	}
 }
 
-static int is_dml_statement(long statement_type);
+static int is_returning_statement(long statement_type);
 static void fb_cursor_prepare_output_buffer(struct FbCursor *fb_cursor);
 static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor, struct FbConnection *fb_connection);
 
@@ -2174,17 +2174,6 @@ static long cursor_rows_affected(struct FbCursor *fb_cursor, long statement_type
  * This function is not published.
  */
 // PATCH: RETURNING SUPPORT
-
-/* Determina si el tipo de statement es DML (INSERT, UPDATE, DELETE) */
-/* Firebird returns: INSERT=4, UPDATE=5, DELETE=6, EXECUTE PROCEDURE=7,
-   INSERT RETURNING=8, UPDATE RETURNING=27, DELETE RETURNING=28 */
-static int is_dml_statement(long statement_type)
-{
-        return (statement_type == isc_info_sql_stmt_insert ||
-                statement_type == isc_info_sql_stmt_update ||
-                statement_type == isc_info_sql_stmt_delete ||
-                statement_type == isc_info_sql_stmt_exec_procedure);
-}
 
 /* Determina si el tipo de statement tiene RETURNING */
 static int is_returning_statement(long statement_type)

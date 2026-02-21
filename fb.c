@@ -61,6 +61,17 @@
 #define	EXECF_EXECDML	0
 #define	EXECF_SETPARM	1
 
+/* Firebird statement types - ensure RETURNING types are defined */
+#ifndef isc_info_sql_stmt_insert_returning
+#define isc_info_sql_stmt_insert_returning 8
+#endif
+#ifndef isc_info_sql_stmt_update_returning
+#define isc_info_sql_stmt_update_returning 27
+#endif
+#ifndef isc_info_sql_stmt_delete_returning
+#define isc_info_sql_stmt_delete_returning 28
+#endif
+
 static VALUE rb_mFb;
 static VALUE rb_cFbDatabase;
 static VALUE rb_cFbConnection;
@@ -1338,7 +1349,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 	int is_negative = 0;
 	unsigned long long abs_data;
 	int len, decimal_places, dot_pos;
-	
+
 	/* Handle negative numbers */
 	if (sql_data < 0) {
 		is_negative = 1;
@@ -1347,50 +1358,50 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 	} else {
 		abs_data = (unsigned long long)sql_data;
 	}
-	
+
 	/* Convert to string */
 	int wrote = snprintf(bigdecimal_buffer, sizeof(bigdecimal_buffer), "%llu", abs_data);
 	if (wrote < 0 || wrote >= (int)sizeof(bigdecimal_buffer)) {
 		rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
 	}
 	len = wrote;
-	
+
 	/* Add decimal point if scale != 0 */
 	if (scale != 0) {
 		decimal_places = (scale < 0) ? -scale : scale;
 		dot_pos = len - decimal_places;
-		
+
 		/* If we need leading zeros before the decimal point */
 		if (dot_pos <= 0) {
 			/* Need to add leading zeros to ensure at least one digit before decimal point */
 			int leading_zeros = 1 - dot_pos;
-			
+
 			/* Check buffer bounds */
 			if (len + leading_zeros + 1 >= (int)sizeof(bigdecimal_buffer)) {
 				rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
 			}
-			
+
 			/* Shift the string to make room for leading zeros */
 			memmove(bigdecimal_buffer + leading_zeros, bigdecimal_buffer, len + 1);
-			
+
 			/* Add leading zeros */
 			memset(bigdecimal_buffer, '0', leading_zeros);
-			
+
 			len += leading_zeros;
 			dot_pos = len - decimal_places;
 		}
-		
+
 		/* Check buffer bounds before inserting decimal point */
 		if (len + 1 >= (int)sizeof(bigdecimal_buffer)) {
 			rb_raise(rb_eRuntimeError, "Buffer overflow in decimal conversion");
 		}
-		
+
 		/* Insert decimal point */
 		memmove(bigdecimal_buffer + dot_pos + 1, bigdecimal_buffer + dot_pos, len - dot_pos);
 		bigdecimal_buffer[dot_pos] = '.';
 		bigdecimal_buffer[len + 1] = '\0';
 	}
-	
+
 	/* Add minus sign if needed - do this AFTER decimal point placement */
 	if (is_negative) {
 		/* Shift string to make room for minus sign */
@@ -1399,7 +1410,7 @@ static VALUE sql_decimal_to_bigdecimal(long long sql_data, int scale)
 		bigdecimal_buffer[0] = '-';
 		bigdecimal_buffer[len + 1] = '\0';  /* Ensure proper null termination */
 	}
-	
+
 	return rb_funcall(rb_cObject, rb_intern("BigDecimal"), 1, rb_str_new2(bigdecimal_buffer));
 }
 
@@ -1685,22 +1696,21 @@ static void fb_cursor_execute_withparams(struct FbCursor *fb_cursor, long argc, 
         long length;
         int has_returning;
 
-        TypedData_Get_Struct(fb_cursor->connection, struct FbConnection, 
+        TypedData_Get_Struct(fb_cursor->connection, struct FbConnection,
                               &fbconnection_data_type, fb_connection);
 
         /* Obtener tipo de statement */
         isc_dsql_sql_info(fb_connection->isc_status, &fb_cursor->stmt,
                           sizeof(isc_info_stmt), isc_info_stmt,
                           sizeof(isc_info_buff), isc_info_buff);
-        
+
         if (isc_info_buff[0] == isc_info_sql_stmt_type) {
                 length = isc_vax_integer(&isc_info_buff[1], 2);
                 statement_type = isc_vax_integer(&isc_info_buff[3], (short)length);
         }
 
-        /* Verificar si es DML con RETURNING */
-        has_returning = is_dml_statement(statement_type) && 
-                        (fb_cursor->o_sqlda->sqld > 0);
+        /* Verificar si es statement con RETURNING */
+        has_returning = is_returning_statement(statement_type);
 
         if (argc >= 1 && TYPE(argv[0]) == T_ARRAY) {
                 int i;
@@ -1715,23 +1725,23 @@ static void fb_cursor_execute_withparams(struct FbCursor *fb_cursor, long argc, 
                         for (i = 0; i < argc; i++) {
                                 obj = argv[i];
                                 Check_Type(obj, T_ARRAY);
-                                fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(obj), 
+                                fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(obj),
                                                           RARRAY_PTR(obj));
 
                                 if (has_returning) {
                                         fb_cursor_prepare_output_buffer(fb_cursor);
-                                        isc_dsql_execute2(fb_connection->isc_status, 
-                                                         &fb_connection->transact, 
-                                                         &fb_cursor->stmt, 
-                                                         SQLDA_VERSION1, 
-                                                         fb_cursor->i_sqlda, 
+                                        isc_dsql_execute2(fb_connection->isc_status,
+                                                         &fb_connection->transact,
+                                                         &fb_cursor->stmt,
+                                                         SQLDA_VERSION1,
+                                                         fb_cursor->i_sqlda,
                                                          fb_cursor->o_sqlda);
                                 } else {
-                                        isc_dsql_execute2(fb_connection->isc_status, 
-                                                         &fb_connection->transact, 
-                                                         &fb_cursor->stmt, 
-                                                         SQLDA_VERSION1, 
-                                                         fb_cursor->i_sqlda, 
+                                        isc_dsql_execute2(fb_connection->isc_status,
+                                                         &fb_connection->transact,
+                                                         &fb_cursor->stmt,
+                                                         SQLDA_VERSION1,
+                                                         fb_cursor->i_sqlda,
                                                          NULL);
                                 }
                                 fb_error_check(fb_connection->isc_status);
@@ -1742,18 +1752,18 @@ static void fb_cursor_execute_withparams(struct FbCursor *fb_cursor, long argc, 
 
                 if (has_returning) {
                         fb_cursor_prepare_output_buffer(fb_cursor);
-                        isc_dsql_execute2(fb_connection->isc_status, 
-                                         &fb_connection->transact, 
-                                         &fb_cursor->stmt, 
-                                         SQLDA_VERSION1, 
-                                         fb_cursor->i_sqlda, 
+                        isc_dsql_execute2(fb_connection->isc_status,
+                                         &fb_connection->transact,
+                                         &fb_cursor->stmt,
+                                         SQLDA_VERSION1,
+                                         fb_cursor->i_sqlda,
                                          fb_cursor->o_sqlda);
                 } else {
-                        isc_dsql_execute2(fb_connection->isc_status, 
-                                         &fb_connection->transact, 
-                                         &fb_cursor->stmt, 
-                                         SQLDA_VERSION1, 
-                                         fb_cursor->i_sqlda, 
+                        isc_dsql_execute2(fb_connection->isc_status,
+                                         &fb_connection->transact,
+                                         &fb_cursor->stmt,
+                                         SQLDA_VERSION1,
+                                         fb_cursor->i_sqlda,
                                          NULL);
                 }
                 fb_error_check(fb_connection->isc_status);
@@ -2166,11 +2176,22 @@ static long cursor_rows_affected(struct FbCursor *fb_cursor, long statement_type
 // PATCH: RETURNING SUPPORT
 
 /* Determina si el tipo de statement es DML (INSERT, UPDATE, DELETE) */
-/* Firebird returns: INSERT=1, UPDATE=2, DELETE=3, INSERT RETURNING=8 */
+/* Firebird returns: INSERT=4, UPDATE=5, DELETE=6, EXECUTE PROCEDURE=7,
+   INSERT RETURNING=8, UPDATE RETURNING=27, DELETE RETURNING=28 */
 static int is_dml_statement(long statement_type)
 {
-        return (statement_type == 1 || statement_type == 2 || 
-                statement_type == 3 || statement_type == 8);
+        return (statement_type == isc_info_sql_stmt_insert ||
+                statement_type == isc_info_sql_stmt_update ||
+                statement_type == isc_info_sql_stmt_delete ||
+                statement_type == isc_info_sql_stmt_exec_procedure);
+}
+
+/* Determina si el tipo de statement tiene RETURNING */
+static int is_returning_statement(long statement_type)
+{
+        return (statement_type == isc_info_sql_stmt_insert_returning ||
+                statement_type == isc_info_sql_stmt_update_returning ||
+                statement_type == isc_info_sql_stmt_delete_returning);
 }
 
 /* Prepara el buffer de salida para recibir datos de RETURNING */
@@ -2187,7 +2208,15 @@ static void fb_cursor_prepare_output_buffer(struct FbCursor *fb_cursor)
         cols = fb_cursor->o_sqlda->sqld;
         if (cols == 0) return;
 
-        for (var = fb_cursor->o_sqlda->sqlvar, offset = 0, count = 0; 
+        /* Calculate required buffer size first and reallocate if needed */
+        length = calculate_buffsize(fb_cursor->o_sqlda);
+        if (length > fb_cursor->o_buffer_size) {
+                fb_cursor->o_buffer = xrealloc(fb_cursor->o_buffer, length);
+                fb_cursor->o_buffer_size = length;
+        }
+
+        /* Now set up pointers into the buffer */
+        for (var = fb_cursor->o_sqlda->sqlvar, offset = 0, count = 0;
              count < cols; var++, count++) {
                 length = alignment = var->sqllen;
                 dtp = var->sqltype & ~1;
@@ -2206,16 +2235,10 @@ static void fb_cursor_prepare_output_buffer(struct FbCursor *fb_cursor)
                 var->sqlind = (short*)(fb_cursor->o_buffer + offset);
                 offset += sizeof(short);
         }
-
-        length = calculate_buffsize(fb_cursor->o_sqlda);
-        if (length > fb_cursor->o_buffer_size) {
-                fb_cursor->o_buffer = xrealloc(fb_cursor->o_buffer, length);
-                fb_cursor->o_buffer_size = length;
-        }
 }
 
 /* Obtiene los valores retornados de un DML con RETURNING */
-static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor, 
+static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor,
                                         struct FbConnection *fb_connection)
 {
         VALUE result;
@@ -2226,9 +2249,11 @@ static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor,
         VALUE val;
         VARY *vary;
         struct tm tms;
+        ISC_STATUS fetch_status;
 
-        if (isc_dsql_fetch(fb_connection->isc_status, &fb_cursor->stmt, 
-                           1, fb_cursor->o_sqlda) != 0) {
+        fetch_status = isc_dsql_fetch(fb_connection->isc_status, &fb_cursor->stmt,
+                                      1, fb_cursor->o_sqlda);
+        if (fetch_status == SQLCODE_NOMORE) {
                 return Qnil;
         }
         fb_error_check(fb_connection->isc_status);
@@ -2247,7 +2272,7 @@ static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor,
                                 case SQL_TEXT:
                                         val = rb_str_new(var->sqldata, var->sqllen);
                                         #if HAVE_RUBY_ENCODING_H
-                                        rb_funcall(val, id_force_encoding, 1, 
+                                        rb_funcall(val, id_force_encoding, 1,
                                                    fb_connection->encoding);
                                         #endif
                                         break;
@@ -2256,7 +2281,7 @@ static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor,
                                         vary = (VARY*)var->sqldata;
                                         val = rb_str_new(vary->vary_string, vary->vary_length);
                                         #if HAVE_RUBY_ENCODING_H
-                                        rb_funcall(val, id_force_encoding, 1, 
+                                        rb_funcall(val, id_force_encoding, 1,
                                                    fb_connection->encoding);
                                         #endif
                                         break;
@@ -2264,7 +2289,7 @@ static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor,
                                 case SQL_SHORT:
                                         if (var->sqlscale < 0) {
                                                 val = sql_decimal_to_bigdecimal(
-                                                        (long long)*(ISC_SHORT*)var->sqldata, 
+                                                        (long long)*(ISC_SHORT*)var->sqldata,
                                                         var->sqlscale);
                                         } else {
                                                 val = INT2NUM((int)*(short*)var->sqldata);
@@ -2274,7 +2299,7 @@ static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor,
                                 case SQL_LONG:
                                         if (var->sqlscale < 0) {
                                                 val = sql_decimal_to_bigdecimal(
-                                                        (long long)*(ISC_LONG*)var->sqldata, 
+                                                        (long long)*(ISC_LONG*)var->sqldata,
                                                         var->sqlscale);
                                         } else {
                                                 val = INT2NUM(*(ISC_LONG*)var->sqldata);
@@ -2292,7 +2317,7 @@ static VALUE fb_cursor_fetch_returning(struct FbCursor *fb_cursor,
                                 case SQL_INT64:
                                         if (var->sqlscale < 0) {
                                                 val = sql_decimal_to_bigdecimal(
-                                                        *(ISC_INT64*)var->sqldata, 
+                                                        *(ISC_INT64*)var->sqldata,
                                                         var->sqlscale);
                                         } else {
                                                 val = LL2NUM(*(ISC_INT64*)var->sqldata);
@@ -2354,16 +2379,16 @@ static VALUE cursor_execute2(VALUE args)
 
         VALUE self = rb_ary_pop(args);
         TypedData_Get_Struct(self, struct FbCursor, &fbcursor_data_type, fb_cursor);
-        TypedData_Get_Struct(fb_cursor->connection, struct FbConnection, 
+        TypedData_Get_Struct(fb_cursor->connection, struct FbConnection,
                               &fbconnection_data_type, fb_connection);
 
         rb_sql = rb_ary_shift(args);
         sql = StringValuePtr(rb_sql);
 
         /* Prepare query */
-        isc_dsql_prepare(fb_connection->isc_status, &fb_connection->transact, 
-                         &fb_cursor->stmt, 0, sql, 
-                         fb_connection_dialect(fb_connection), 
+        isc_dsql_prepare(fb_connection->isc_status, &fb_connection->transact,
+                         &fb_cursor->stmt, 0, sql,
+                         fb_connection_dialect(fb_connection),
                          fb_cursor->o_sqlda);
         fb_error_check(fb_connection->isc_status);
 
@@ -2381,12 +2406,12 @@ static VALUE cursor_execute2(VALUE args)
         }
 
         /* Describe the parameters */
-        isc_dsql_describe_bind(fb_connection->isc_status, &fb_cursor->stmt, 
+        isc_dsql_describe_bind(fb_connection->isc_status, &fb_cursor->stmt,
                                1, fb_cursor->i_sqlda);
         fb_error_check(fb_connection->isc_status);
 
         /* Describe output columns */
-        isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt, 
+        isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt,
                           1, fb_cursor->o_sqlda);
         fb_error_check(fb_connection->isc_status);
 
@@ -2394,7 +2419,7 @@ static VALUE cursor_execute2(VALUE args)
         if (fb_cursor->o_sqlda->sqln < fb_cursor->o_sqlda->sqld) {
                 xfree(fb_cursor->o_sqlda);
                 fb_cursor->o_sqlda = sqlda_alloc(fb_cursor->o_sqlda->sqld);
-                isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt, 
+                isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt,
                                   1, fb_cursor->o_sqlda);
                 fb_error_check(fb_connection->isc_status);
         }
@@ -2404,7 +2429,7 @@ static VALUE cursor_execute2(VALUE args)
         if (fb_cursor->i_sqlda->sqln < in_params) {
                 xfree(fb_cursor->i_sqlda);
                 fb_cursor->i_sqlda = sqlda_alloc(in_params);
-                isc_dsql_describe_bind(fb_connection->isc_status, &fb_cursor->stmt, 
+                isc_dsql_describe_bind(fb_connection->isc_status, &fb_cursor->stmt,
                                        1, fb_cursor->i_sqlda);
                 fb_error_check(fb_connection->isc_status);
         }
@@ -2419,53 +2444,43 @@ static VALUE cursor_execute2(VALUE args)
                 }
         }
 
-        /* RETURNING: Check SQL for "returning" keyword and DML statement type */
-        {
-                int has_returning = 0;
-                if (sql != NULL && strlen(sql) > 0) {
-                        char *sql_lower = strdup(sql);
-                        char *p;
-                        for (p = sql_lower; *p; p++) *p = tolower(*p);
-                        has_returning = (strstr(sql_lower, "returning") != NULL);
-                        free(sql_lower);
-                
-                if (has_returning && is_dml_statement(statement_type)) {
-                                /* RETURNING case - execute and fetch immediately */
-                                if (in_params) {
-                                        fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(args), 
-                                                                  RARRAY_PTR(args));
-                                }
-
-                                fb_cursor_prepare_output_buffer(fb_cursor);
-
-                                isc_dsql_execute2(fb_connection->isc_status, 
-                                                 &fb_connection->transact, 
-                                                 &fb_cursor->stmt, 
-                                                 SQLDA_VERSION1, 
-                                                 in_params ? fb_cursor->i_sqlda : NULL, 
-                                                 fb_cursor->o_sqlda);
-                                fb_error_check(fb_connection->isc_status);
-
-                                /* Fetch the RETURNING values */
-                                result = fb_cursor_fetch_returning(fb_cursor, fb_connection);
-
-                                /* Mark cursor as closed - don't close statement here, let cursor_drop handle it */
-                                fb_cursor->open = Qfalse;
-
-                                if (NIL_P(result)) {
-                                        result = rb_ary_new();
-                                }
-
-                                rows_affected = cursor_rows_affected(fb_cursor, statement_type);
-                                
-                                VALUE hash_result = rb_hash_new();
-                                rb_hash_aset(hash_result, ID2SYM(rb_intern("returning")), result);
-                                rb_hash_aset(hash_result, ID2SYM(rb_intern("rows_affected")), 
-                                             INT2NUM((int)rows_affected));
-                                
-                                return hash_result;
-                        }
+        /* RETURNING: Check for RETURNING statement type */
+        if (is_returning_statement(statement_type) && fb_cursor->o_sqlda->sqld > 0) {
+                /* RETURNING case - execute and fetch immediately */
+                if (in_params) {
+                        /* args[0] is the SQL, parameters start from args[1] */
+                        fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(args) - 1,
+                                                  RARRAY_PTR(args) + 1);
                 }
+
+                fb_cursor_prepare_output_buffer(fb_cursor);
+
+                isc_dsql_execute2(fb_connection->isc_status,
+                                 &fb_connection->transact,
+                                 &fb_cursor->stmt,
+                                 SQLDA_VERSION1,
+                                 in_params ? fb_cursor->i_sqlda : NULL,
+                                 fb_cursor->o_sqlda);
+                fb_error_check(fb_connection->isc_status);
+
+                /* Fetch the RETURNING values */
+                result = fb_cursor_fetch_returning(fb_cursor, fb_connection);
+
+                /* Mark cursor as closed */
+                fb_cursor->open = Qfalse;
+
+                if (NIL_P(result)) {
+                        result = rb_ary_new();
+                }
+
+                rows_affected = cursor_rows_affected(fb_cursor, statement_type);
+
+                VALUE hash_result = rb_hash_new();
+                rb_hash_aset(hash_result, ID2SYM(rb_intern("returning")), result);
+                rb_hash_aset(hash_result, ID2SYM(rb_intern("rows_affected")),
+                             INT2NUM((int)rows_affected));
+
+                return hash_result;
         }
 
         /* CASO 2: DML SIN RETURNING (comportamiento original) */
@@ -2477,12 +2492,13 @@ static VALUE cursor_execute2(VALUE args)
                 } else if (statement_type == isc_info_sql_stmt_rollback) {
                         rb_raise(rb_eFbError, "use Fb::Connection#rollback()");
                 } else if (in_params) {
-                        fb_cursor_execute_withparams(fb_cursor, RARRAY_LEN(args), 
-                                                     RARRAY_PTR(args));
+                        /* args[0] is the SQL, parameters start from args[1] */
+                        fb_cursor_execute_withparams(fb_cursor, RARRAY_LEN(args) - 1,
+                                                     RARRAY_PTR(args) + 1);
                 } else {
-                        isc_dsql_execute2(fb_connection->isc_status, 
-                                         &fb_connection->transact, 
-                                         &fb_cursor->stmt, 
+                        isc_dsql_execute2(fb_connection->isc_status,
+                                         &fb_connection->transact,
+                                         &fb_cursor->stmt,
                                          SQLDA_VERSION1, NULL, NULL);
                         fb_error_check(fb_connection->isc_status);
                 }
@@ -2494,21 +2510,22 @@ static VALUE cursor_execute2(VALUE args)
                 if (fb_cursor->o_sqlda->sqln < cols) {
                         xfree(fb_cursor->o_sqlda);
                         fb_cursor->o_sqlda = sqlda_alloc(cols);
-                        isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt, 
+                        isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt,
                                           1, fb_cursor->o_sqlda);
                         fb_error_check(fb_connection->isc_status);
                 }
 
                 if (in_params) {
-                        fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(args), 
-                                                  RARRAY_PTR(args));
+                        /* args[0] is the SQL, parameters start from args[1] */
+                        fb_cursor_set_inputparams(fb_cursor, RARRAY_LEN(args) - 1,
+                                                  RARRAY_PTR(args) + 1);
                 }
 
-                isc_dsql_execute2(fb_connection->isc_status, 
-                                 &fb_connection->transact, 
-                                 &fb_cursor->stmt, 
-                                 SQLDA_VERSION1, 
-                                 in_params ? fb_cursor->i_sqlda : NULL, 
+                isc_dsql_execute2(fb_connection->isc_status,
+                                 &fb_connection->transact,
+                                 &fb_cursor->stmt,
+                                 SQLDA_VERSION1,
+                                 in_params ? fb_cursor->i_sqlda : NULL,
                                  NULL);
                 fb_error_check(fb_connection->isc_status);
                 fb_cursor->open = Qtrue;
@@ -2519,7 +2536,7 @@ static VALUE cursor_execute2(VALUE args)
                         fb_cursor->o_buffer_size = length;
                 }
 
-                fb_cursor->fields_ary = fb_cursor_fields_ary(fb_cursor->o_sqlda, 
+                fb_cursor->fields_ary = fb_cursor_fields_ary(fb_cursor->o_sqlda,
                                                              fb_connection->downcase_names);
                 fb_cursor->fields_hash = fb_cursor_fields_hash(fb_cursor->fields_ary);
         }

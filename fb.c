@@ -2595,8 +2595,12 @@ static VALUE cursor_execute2(VALUE args)
 		 * it would yield garbage or stale data.
 		 */
 		if (rows_affected > 0) {
-			returning_row = fb_cursor_read_returning(fb_cursor, fb_connection);
-			if (NIL_P(returning_row)) {
+			int state = 0;
+			returning_row = (VALUE)rb_protect(
+				(VALUE(*)(VALUE))fb_cursor_read_returning,
+				(VALUE)fb_cursor,
+				&state);
+			if (state != 0 || NIL_P(returning_row)) {
 				returning_row = rb_ary_new();
 			}
 		} else {

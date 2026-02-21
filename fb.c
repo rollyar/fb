@@ -2350,10 +2350,9 @@ static VALUE cursor_execute2(VALUE args)
 
 	/* ----------------------------------------------------------------
 	 * CASE 2: DML with RETURNING clause
-	 *   Detected by: out_cols > 0 AND not a SELECT AND is DML (INSERT/UPDATE/DELETE)
+	 *   Detected by: out_cols > 0 AND not a SELECT statement
 	 * ---------------------------------------------------------------- */
-	else if (out_cols > 0 && statement_type != isc_info_sql_stmt_select &&
-	         (statement_type == 1 || statement_type == 2 || statement_type == 3 || statement_type == 8)) {
+	else if (out_cols > 0 && statement_type != isc_info_sql_stmt_select) {
 		VALUE returning_row;
 
 		/* Allocate output buffer */

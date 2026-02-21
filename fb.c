@@ -2022,7 +2022,18 @@ static long cursor_rows_affected(struct FbCursor *fb_cursor, long statement_type
 		case isc_info_sql_stmt_insert: return inserted;
 		case isc_info_sql_stmt_update: return updated;
 		case isc_info_sql_stmt_delete: return deleted;
-		default: return inserted + selected + updated + deleted;
+		default:
+			/*
+			 * For DML with RETURNING, Firebird internally uses a cursor mechanism
+			 * that can cause insert_count to be incremented alongside update/delete
+			 * counts. We deduce the intended count by picking the non-zero, non-select
+			 * counter that best represents the operation, avoiding double-counting.
+			 * Priority: deleted > updated > inserted (most specific first).
+			 */
+			if (deleted > 0) return deleted;
+			if (updated > 0) return updated;
+			if (inserted > 0) return inserted;
+			return selected;
 	}
 }
 

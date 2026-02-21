@@ -2347,29 +2347,72 @@ static VALUE fb_cursor_read_returning(struct FbCursor *fb_cursor, struct FbConne
 	return result;
 }
 
-static int sql_contains_returning_clause(const char *sql)
+static int sql_is_ident_char(char ch)
 {
-	const char *keyword = "returning";
-	const char *p;
+	return isalnum((unsigned char)ch) || ch == '_' || ch == '$';
+}
 
-	if (sql == NULL) return 0;
+static int sql_contains_keyword(const char *sql, const char *keyword)
+{
+	const char *p;
+	int klen;
+
+	if (sql == NULL || keyword == NULL) return 0;
+	klen = (int)strlen(keyword);
+	if (klen == 0) return 0;
 
 	for (p = sql; *p; p++) {
 		int i;
-		for (i = 0; keyword[i]; i++) {
-			if (p[i] == '\0') {
-				return 0;
-			}
-			if (tolower((unsigned char)p[i]) != keyword[i]) {
+		for (i = 0; i < klen; i++) {
+			if (p[i] == '\0' || tolower((unsigned char)p[i]) != keyword[i]) {
 				break;
 			}
 		}
-		if (keyword[i] == '\0') {
-			return 1;
+		if (i == klen) {
+			char prev = (p == sql) ? '\0' : p[-1];
+			char next = p[klen];
+			if (!sql_is_ident_char(prev) && !sql_is_ident_char(next)) {
+				return 1;
+			}
 		}
 	}
 
 	return 0;
+}
+
+static int sql_contains_returning_clause(const char *sql)
+{
+	return sql_contains_keyword(sql, "returning");
+}
+
+static long sql_detect_dml_type(const char *sql)
+{
+	const char *p;
+
+	if (sql == NULL) return 0;
+
+	for (p = sql; *p && isspace((unsigned char)*p); p++) {
+		/* skip leading whitespace */
+	}
+
+	if (strncasecmp(p, "insert", 6) == 0 && !sql_is_ident_char(p[6])) {
+		return isc_info_sql_stmt_insert;
+	}
+	if (strncasecmp(p, "update", 6) == 0 && !sql_is_ident_char(p[6])) {
+		return isc_info_sql_stmt_update;
+	}
+	if (strncasecmp(p, "delete", 6) == 0 && !sql_is_ident_char(p[6])) {
+		return isc_info_sql_stmt_delete;
+	}
+
+	return 0;
+}
+
+static int statement_type_is_dml(long statement_type)
+{
+	return statement_type == isc_info_sql_stmt_insert ||
+	       statement_type == isc_info_sql_stmt_update ||
+	       statement_type == isc_info_sql_stmt_delete;
 }
 
 /*
@@ -2402,6 +2445,7 @@ static VALUE cursor_execute2(VALUE args)
 	long in_params;
 	long out_cols;
 	long rows_affected;
+	long effective_statement_type;
 	int has_returning_clause;
 	VALUE result = Qnil;
 	char isc_info_buff[16];
@@ -2445,6 +2489,14 @@ static VALUE cursor_execute2(VALUE args)
 		statement_type = isc_vax_integer(&isc_info_buff[3], (short)length);
 	} else {
 		statement_type = 0;
+	}
+
+	effective_statement_type = statement_type;
+	if (!statement_type_is_dml(effective_statement_type) && has_returning_clause) {
+		long detected_type = sql_detect_dml_type(sql);
+		if (statement_type_is_dml(detected_type)) {
+			effective_statement_type = detected_type;
+		}
 	}
 
 	/* Describe input parameters */
@@ -2502,7 +2554,7 @@ static VALUE cursor_execute2(VALUE args)
 	 * CASE 2: DML with RETURNING clause
 	 *   Detected by: out_cols > 0 AND not a SELECT statement
 	 * ---------------------------------------------------------------- */
-	else if (out_cols > 0 && (statement_type != isc_info_sql_stmt_select || has_returning_clause)) {
+	else if (out_cols > 0 && statement_type_is_dml(effective_statement_type) && has_returning_clause) {
 		VALUE returning_row;
 
 		/* Allocate output buffer */
@@ -2532,7 +2584,7 @@ static VALUE cursor_execute2(VALUE args)
 		                  fb_cursor->o_sqlda);
 		fb_error_check(fb_connection->isc_status);
 
-		rows_affected = cursor_rows_affected(fb_cursor, statement_type);
+		rows_affected = cursor_rows_affected(fb_cursor, effective_statement_type);
 
 		/*
 		 * Only read the RETURNING buffer if at least one row was affected.
@@ -2613,7 +2665,7 @@ static VALUE cursor_execute2(VALUE args)
 			                  NULL, NULL);
 			fb_error_check(fb_connection->isc_status);
 		}
-		rows_affected = cursor_rows_affected(fb_cursor, statement_type);
+		rows_affected = cursor_rows_affected(fb_cursor, effective_statement_type);
 		result = LONG2NUM(rows_affected);
 	}
 

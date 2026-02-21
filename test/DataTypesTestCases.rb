@@ -92,6 +92,12 @@ class DataTypesTestCases < FbTestCase
     range.inject(0) { |m, i| m + gen_d92(i) }
   end
 
+  def to_decimal(value)
+    return value if value.is_a?(BigDecimal)
+
+    BigDecimal(value.to_s)
+  end
+
   def test_insert_basic_types
     sql_schema = <<-END
       create table TEST (
@@ -154,9 +160,69 @@ class DataTypesTestCases < FbTestCase
         end
       end
 
-      # Aggregate tests temporarily disabled - Firebird 5 compatibility issue
-      # sums = connection.query(sql_sum).first
-      # ...
+      connection.drop
+    end
+  end
+
+  def test_aggregate_sum_avg_max
+    sql_schema = <<-END
+      create table test_aggregate (
+        id integer,
+        v_int integer,
+        v_smallint smallint,
+        v_bigint bigint#{', v_int128 int128' if @fb_version >= 4}
+      );
+    END
+    sql_insert = "insert into test_aggregate (id, v_int, v_smallint, v_bigint#{', v_int128' if @fb_version >= 4}) values (?, ?, ?, ?#{', ?' if @fb_version >= 4})"
+    sql_select = <<-END
+      select
+        sum(v_int), avg(v_int), max(v_int),
+        sum(v_smallint), avg(v_smallint), max(v_smallint),
+        sum(v_bigint), avg(v_bigint), max(v_bigint)
+        #{', sum(v_int128), avg(v_int128), max(v_int128)' if @fb_version >= 4}
+      from test_aggregate
+    END
+
+    values = (-3..6).to_a
+    int128_values = values.map { |v| v * 10_000_000_000_000_000_000 }
+
+    Database.create(@parms) do |connection|
+      connection.execute(sql_schema)
+
+      connection.transaction do
+        values.each_with_index do |value, idx|
+          bind_values = [idx + 1, value, value, value * 1_000_000_000]
+          bind_values << int128_values[idx] if @fb_version >= 4
+          connection.execute(sql_insert, *bind_values)
+        end
+      end
+
+      row = connection.query(sql_select).first
+
+      expected = [
+        values.sum,
+        BigDecimal(values.sum.to_s) / values.size,
+        values.max,
+        values.sum,
+        BigDecimal(values.sum.to_s) / values.size,
+        values.max,
+        values.sum * 1_000_000_000,
+        BigDecimal((values.sum * 1_000_000_000).to_s) / values.size,
+        values.max * 1_000_000_000
+      ]
+
+      if @fb_version >= 4
+        expected += [
+          int128_values.sum,
+          BigDecimal(int128_values.sum.to_s) / int128_values.size,
+          int128_values.max
+        ]
+      end
+
+      assert_equal expected.size, row.size
+      expected.each_with_index do |expected_value, idx|
+        assert_equal to_decimal(expected_value), to_decimal(row[idx]), "aggregate index #{idx}"
+      end
 
       connection.drop
     end

@@ -42,10 +42,10 @@ module FbTestCases
       database: "#{@db_host}:#{@db_file}",
       username: @username,
       password: @password,
-      charset: 'NONE',
+      charset: 'UTF8',
       role: 'READER'
     }
-    @parms_s = "database = #{@db_host}:#{@db_file}; username = #{@username}; password = #{@password}; charset = NONE; role = READER;"
+    @parms_s = "database = #{@db_host}:#{@db_file}; username = #{@username}; password = #{@password}; charset = UTF8; role = READER;"
     @fb_version = -1
 
     begin

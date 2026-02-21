@@ -478,32 +478,6 @@ static void fb_error_check_warn(ISC_STATUS *isc_status)
 	}
 }
 
-/*
- * Apply the appropriate encoding to a Ruby string returned from the database.
- *
- * When the connection uses charset NONE (stored as "ASCII-8BIT"), we tag the
- * string as UTF-8 instead. This is the right default for Ruby on Rails and
- * modern Ruby applications, which expect UTF-8 everywhere.
- *
- * When an explicit charset is configured (e.g. UTF8, LATIN1, WIN1252),
- * we use the connection encoding as-is.
- */
-#if HAVE_RUBY_ENCODING_H
-static VALUE fb_str_enc_ascii8bit;  /* cached "ASCII-8BIT" string */
-static VALUE fb_str_enc_utf8;       /* cached "UTF-8" string       */
-
-static void fb_str_apply_encoding(VALUE str, VALUE connection_encoding)
-{
-	VALUE enc;
-	if (rb_funcall(connection_encoding, rb_intern("=="), 1, fb_str_enc_ascii8bit) == Qtrue) {
-		enc = fb_str_enc_utf8;
-	} else {
-		enc = connection_encoding;
-	}
-	rb_funcall(str, id_force_encoding, 1, enc);
-}
-#endif
-
 static XSQLDA* sqlda_alloc(long cols)
 {
 	XSQLDA *sqlda;
@@ -1875,7 +1849,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 				case SQL_TEXT:
 					val = rb_str_new(var->sqldata, var->sqllen);
 					#if HAVE_RUBY_ENCODING_H
-					fb_str_apply_encoding(val, fb_connection->encoding);
+					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					break;
 
@@ -1883,7 +1857,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					vary = (VARY*)var->sqldata;
 					val = rb_str_new(vary->vary_string, vary->vary_length);
 					#if HAVE_RUBY_ENCODING_H
-					fb_str_apply_encoding(val, fb_connection->encoding);
+					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					break;
 
@@ -2033,7 +2007,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					}
 
 					#if HAVE_RUBY_ENCODING_H
-					fb_str_apply_encoding(val, fb_connection->encoding);
+					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					isc_close_blob(fb_connection->isc_status, &blob_handle);
 					fb_error_check(fb_connection->isc_status);
@@ -2155,7 +2129,7 @@ static VALUE fb_cursor_read_returning(struct FbCursor *fb_cursor, struct FbConne
 				case SQL_TEXT:
 					val = rb_str_new(var->sqldata, var->sqllen);
 					#if HAVE_RUBY_ENCODING_H
-					fb_str_apply_encoding(val, fb_connection->encoding);
+					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					break;
 
@@ -2163,7 +2137,7 @@ static VALUE fb_cursor_read_returning(struct FbCursor *fb_cursor, struct FbConne
 					vary = (VARY*)var->sqldata;
 					val = rb_str_new(vary->vary_string, vary->vary_length);
 					#if HAVE_RUBY_ENCODING_H
-					fb_str_apply_encoding(val, fb_connection->encoding);
+					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					break;
 
@@ -3343,10 +3317,4 @@ void Init_fb()
 	id_rstrip_bang = rb_intern("rstrip!");
     id_sub_bang = rb_intern("sub!");
     id_force_encoding = rb_intern("force_encoding");
-#if HAVE_RUBY_ENCODING_H
-    fb_str_enc_ascii8bit = rb_str_new2("ASCII-8BIT");
-    rb_global_variable(&fb_str_enc_ascii8bit);
-    fb_str_enc_utf8 = rb_str_new2("UTF-8");
-    rb_global_variable(&fb_str_enc_utf8);
-#endif
 }

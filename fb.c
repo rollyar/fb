@@ -1,4 +1,4 @@
-/*
+ /*
   * fb.c
   * A module to access the Firebird database from Ruby.
   * Fork of interbase.c to fb.c by Brent Rowland.
@@ -1952,36 +1952,56 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					/* Pre-allocate the result string */
 					val = rb_str_new(NULL, total_length);
 
-					/* Read all segments until EOF */
-					do {
+					/*
+					 * Read all blob segments until isc_segstr_eof.
+					 *
+					 * isc_get_segment return values:
+					 *   0               — full segment read successfully, may be more segments
+					 *   isc_segment     — partial read (buffer smaller than segment), more data
+					 *   isc_segstr_eof  — end of blob, stop
+					 *   anything else  — real error
+					 *
+					 * We loop while the status is 0 (success, more segments possible)
+					 * or isc_segment (partial read of current segment).
+					 * We stop on isc_segstr_eof or any real error.
+					 */
+					for (;;) {
 						blob_get_status = isc_get_segment(
 							fb_connection->isc_status, &blob_handle,
 							&actual_seg_len,
-							(unsigned short)(total_length - bytes_read < BLOB_READ_CHUNK
-							                 ? total_length - bytes_read
-							                 : BLOB_READ_CHUNK),
+							BLOB_READ_CHUNK,
 							blob_read_buf);
 
 						if (actual_seg_len > 0) {
+							/* Guard against writing past the pre-allocated buffer */
+							if (bytes_read + actual_seg_len > total_length) {
+								rb_str_resize(val, bytes_read + actual_seg_len);
+								total_length = bytes_read + actual_seg_len;
+							}
 							memcpy(RSTRING_PTR(val) + bytes_read, blob_read_buf, actual_seg_len);
 							bytes_read += actual_seg_len;
 						}
-						/* isc_segment (335544366): partial read, more data in this segment */
-						/* isc_segstr_eof (335544367): end of blob — exit loop */
-					} while (blob_get_status != isc_segstr_eof &&
-					         fb_connection->isc_status[1] != isc_segstr_eof &&
-					         blob_get_status == isc_segment);
 
-					/* Check for real errors (not eof/segment continuation) */
-					if (fb_connection->isc_status[0] == 1 &&
-					    fb_connection->isc_status[1] != 0 &&
-					    fb_connection->isc_status[1] != isc_segstr_eof &&
-					    fb_connection->isc_status[1] != isc_segment) {
-						isc_close_blob(fb_connection->isc_status, &blob_handle);
-						fb_error_check(fb_connection->isc_status);
+						if (blob_get_status == isc_segstr_eof ||
+						    fb_connection->isc_status[1] == isc_segstr_eof) {
+							/* Normal end of blob */
+							break;
+						} else if (blob_get_status == isc_segment ||
+						           fb_connection->isc_status[1] == isc_segment) {
+							/* Partial read — buffer was smaller than segment, keep reading */
+							continue;
+						} else if (blob_get_status == 0) {
+							/* Full segment read — continue to next segment */
+							continue;
+						} else {
+							/* Real error */
+							isc_close_blob(fb_connection->isc_status, &blob_handle);
+							fb_error_check(fb_connection->isc_status);
+							break;
+						}
 					}
 
-					/* Adjust string length to actual bytes read (defensive) */
+					/* Trim to actual bytes read if needed */
 					if (bytes_read != total_length) {
 						rb_str_resize(val, bytes_read);
 					}

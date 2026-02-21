@@ -1812,15 +1812,11 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 	ISC_QUAD blob_id;
 	unsigned short actual_seg_len;
 	static char blob_items[] = {
-		isc_info_blob_max_segment,
-		isc_info_blob_num_segments,
 		isc_info_blob_total_length
 	};
 	char blob_info[32];
 	char *p, item;
 	short length;
-	unsigned short max_segment = 0;
-	ISC_LONG num_segments = 0;
 	ISC_LONG total_length = 0;
 
 	TypedData_Get_Struct(fb_cursor->connection, struct FbConnection, &fbconnection_data_type, fb_connection);
@@ -1916,42 +1912,87 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					break;
 
 				case SQL_BLOB:
+				{
+					/*
+					 * Read a BLOB robustly:
+					 * 1. Query total_length from blob_info to pre-allocate the Ruby string.
+					 * 2. Read segments in a loop until isc_segstr_eof, using a fixed
+					 *    read buffer of 65535 bytes (max Firebird segment size).
+					 *    isc_get_segment returns isc_segment (335544366) when a segment
+					 *    spans multiple reads — we treat that as "more data, keep going"
+					 *    rather than an error.  isc_segstr_eof signals end of blob.
+					 */
+					#define BLOB_READ_CHUNK 65535
+					ISC_STATUS blob_get_status;
+					char blob_read_buf[BLOB_READ_CHUNK];
+					long bytes_read = 0;
+
 					blob_handle = 0;
 					blob_id = *(ISC_QUAD *)var->sqldata;
-					isc_open_blob2(fb_connection->isc_status, &fb_connection->db, &fb_connection->transact, &blob_handle, &blob_id, 0, NULL);
+					isc_open_blob2(fb_connection->isc_status, &fb_connection->db,
+					               &fb_connection->transact, &blob_handle, &blob_id, 0, NULL);
 					fb_error_check(fb_connection->isc_status);
+
+					/* Get total length to pre-allocate */
 					isc_blob_info(
 						fb_connection->isc_status, &blob_handle,
 						sizeof(blob_items), blob_items,
 						sizeof(blob_info), blob_info);
 					fb_error_check(fb_connection->isc_status);
+					total_length = 0;
 					for (p = blob_info; *p != isc_info_end; p += length) {
 						item = *p++;
-						length = (short) isc_vax_integer(p,2);
+						length = (short) isc_vax_integer(p, 2);
 						p += 2;
-						switch (item) {
-							case isc_info_blob_max_segment:
-								max_segment = isc_vax_integer(p,length);
-								break;
-							case isc_info_blob_num_segments:
-								num_segments = isc_vax_integer(p,length);
-								break;
-							case isc_info_blob_total_length:
-								total_length = isc_vax_integer(p,length);
-								break;
+						if (item == isc_info_blob_total_length) {
+							total_length = isc_vax_integer(p, length);
 						}
 					}
-					val = rb_str_new(NULL,total_length);
-					for (p = RSTRING_PTR(val); num_segments > 0; num_segments--, p += actual_seg_len) {
-						isc_get_segment(fb_connection->isc_status, &blob_handle, &actual_seg_len, max_segment, p);
+
+					/* Pre-allocate the result string */
+					val = rb_str_new(NULL, total_length);
+
+					/* Read all segments until EOF */
+					do {
+						blob_get_status = isc_get_segment(
+							fb_connection->isc_status, &blob_handle,
+							&actual_seg_len,
+							(unsigned short)(total_length - bytes_read < BLOB_READ_CHUNK
+							                 ? total_length - bytes_read
+							                 : BLOB_READ_CHUNK),
+							blob_read_buf);
+
+						if (actual_seg_len > 0) {
+							memcpy(RSTRING_PTR(val) + bytes_read, blob_read_buf, actual_seg_len);
+							bytes_read += actual_seg_len;
+						}
+						/* isc_segment (335544366): partial read, more data in this segment */
+						/* isc_segstr_eof (335544367): end of blob — exit loop */
+					} while (blob_get_status != isc_segstr_eof &&
+					         fb_connection->isc_status[1] != isc_segstr_eof &&
+					         blob_get_status == isc_segment);
+
+					/* Check for real errors (not eof/segment continuation) */
+					if (fb_connection->isc_status[0] == 1 &&
+					    fb_connection->isc_status[1] != 0 &&
+					    fb_connection->isc_status[1] != isc_segstr_eof &&
+					    fb_connection->isc_status[1] != isc_segment) {
+						isc_close_blob(fb_connection->isc_status, &blob_handle);
 						fb_error_check(fb_connection->isc_status);
 					}
+
+					/* Adjust string length to actual bytes read (defensive) */
+					if (bytes_read != total_length) {
+						rb_str_resize(val, bytes_read);
+					}
+
 					#if HAVE_RUBY_ENCODING_H
 					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					isc_close_blob(fb_connection->isc_status, &blob_handle);
 					fb_error_check(fb_connection->isc_status);
 					break;
+				}
 
 				case SQL_ARRAY:
 					rb_warn("ARRAY not supported (yet)");
@@ -2316,9 +2357,18 @@ static VALUE cursor_execute2(VALUE args)
 
 		rows_affected = cursor_rows_affected(fb_cursor, statement_type);
 
-		/* Convert buffer to Ruby values */
-		returning_row = fb_cursor_read_returning(fb_cursor, fb_connection);
-		if (NIL_P(returning_row)) {
+		/*
+		 * Only read the RETURNING buffer if at least one row was affected.
+		 * When rows_affected == 0 (e.g. UPDATE WHERE matched nothing),
+		 * Firebird did not write into the output SQLDA buffer, so reading
+		 * it would yield garbage or stale data.
+		 */
+		if (rows_affected > 0) {
+			returning_row = fb_cursor_read_returning(fb_cursor, fb_connection);
+			if (NIL_P(returning_row)) {
+				returning_row = rb_ary_new();
+			}
+		} else {
 			returning_row = rb_ary_new();
 		}
 

@@ -2608,6 +2608,8 @@ static VALUE cursor_execute2(VALUE args)
 		result = rb_hash_new();
 		rb_hash_aset(result, ID2SYM(rb_intern("returning")),     returning_row);
 		rb_hash_aset(result, ID2SYM(rb_intern("rows_affected")), LONG2NUM(rows_affected));
+
+		isc_dsql_free_statement(fb_connection->isc_status, &fb_cursor->stmt, DSQL_close);
 	}
 
 	/* ----------------------------------------------------------------

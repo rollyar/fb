@@ -2610,6 +2610,7 @@ static VALUE cursor_execute2(VALUE args)
 		rb_hash_aset(result, ID2SYM(rb_intern("rows_affected")), LONG2NUM(rows_affected));
 
 		isc_dsql_free_statement(fb_connection->isc_status, &fb_cursor->stmt, DSQL_close);
+		fb_cursor->open = Qfalse;
 	}
 
 	/* ----------------------------------------------------------------

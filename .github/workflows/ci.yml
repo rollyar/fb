@@ -27,13 +27,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Extract libfbclient from container
         run: |
-          sudo apt-get update
-          sudo apt-get install -y firebird-dev libfbclient2 netcat-openbsd ruby-dev
-          if [ -d /usr/include/firebird ] && [ ! -f /usr/include/ibase.h ]; then
-            sudo ln -sf /usr/include/firebird/ibase.h /usr/include/ibase.h
-          fi
+          CONTAINER=$(docker ps --filter "ancestor=firebirdsql/firebird:5.0.3" --format "{{.Names}}" | head -n1)
+          docker cp $CONTAINER:/opt/firebird/lib/libfbclient.so.5* .
+          sudo cp libfbclient.so.5* /usr/lib/
+          sudo ldconfig
+
+      # - name: Install system dependencies
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y firebird-dev libfbclient2 netcat-openbsd ruby-dev
+      #     if [ -d /usr/include/firebird ] && [ ! -f /usr/include/ibase.h ]; then
+      #       sudo ln -sf /usr/include/firebird/ibase.h /usr/include/ibase.h
+      #     fi
 
       - uses: ruby/setup-ruby@v1
         with:

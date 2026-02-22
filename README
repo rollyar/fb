@@ -178,3 +178,54 @@ conn.close
 
 # We could have called conn.drop.
 # We could still call db.drop
+
+
+# ============================================================================
+# RETURNING Clause Support (Firebird 2.0+)
+# ============================================================================
+
+# The execute() method supports INSERT, UPDATE, and DELETE with RETURNING clause.
+# It returns a Hash with two keys:
+#   - :returning => Array of returned values
+#   - :rows_affected => Number of rows affected
+
+# INSERT with RETURNING (auto-generated ID)
+result = conn.execute(
+  "INSERT INTO users (name, email) VALUES (?, ?) RETURNING id",
+  "John Doe", "john@example.com"
+)
+puts result[:returning]       # => [1]
+puts result[:rows_affected]   # => 1
+
+# UPDATE with RETURNING
+result = conn.execute(
+  "UPDATE users SET name = ? WHERE email = ? RETURNING id, name",
+  "Jane Doe", "john@example.com"
+)
+puts result[:returning]       # => [1, "John Doe"]
+puts result[:rows_affected]  # => 1
+
+# DELETE with RETURNING
+result = conn.execute(
+  "DELETE FROM users WHERE id = ? RETURNING id, name",
+  1
+)
+puts result[:returning]       # => [1, "Jane Doe"]
+puts result[:rows_affected]  # => 1
+
+# When no rows are affected (e.g., UPDATE with non-matching WHERE)
+result = conn.execute(
+  "UPDATE users SET name = ? WHERE id = ? RETURNING id",
+  "NewName", 9999  # Non-existent ID
+)
+puts result[:returning]       # => []
+puts result[:rows_affected]  # => 0
+
+# RETURNING with NULL values
+result = conn.execute(
+  "INSERT INTO users (name) VALUES (?) RETURNING email",
+  "John"
+)
+puts result[:returning]       # => [nil] (NULL value returned as nil)
+puts result[:rows_affected]  # => 1
+

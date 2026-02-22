@@ -2208,10 +2208,27 @@ static long cursor_rows_affected(struct FbCursor *fb_cursor, long statement_type
 		r += len;
 	}
 	switch (statement_type) {
-		case isc_info_sql_stmt_select: return selected;
-		case isc_info_sql_stmt_insert: return inserted;
-		case isc_info_sql_stmt_update: return updated;
-		case isc_info_sql_stmt_delete: return deleted;
+		case isc_info_sql_stmt_select:
+			return selected;
+		case isc_info_sql_stmt_insert:
+			/*
+			 * For INSERT ... RETURNING, some Firebird versions report the affected
+			 * row only in select_count. Prefer insert_count, but fall back to
+			 * select_count when needed.
+			 */
+			return inserted > 0 ? inserted : selected;
+		case isc_info_sql_stmt_update:
+			/*
+			 * For UPDATE ... RETURNING, update_count may be reported as 0 while
+			 * select_count carries the affected row count.
+			 */
+			return updated > 0 ? updated : selected;
+		case isc_info_sql_stmt_delete:
+			/*
+			 * For DELETE ... RETURNING, delete_count may be reported as 0 while
+			 * select_count carries the affected row count.
+			 */
+			return deleted > 0 ? deleted : selected;
 		default:
 			/*
 			 * For DML with RETURNING, Firebird internally uses a cursor mechanism

@@ -87,4 +87,4 @@ jobs:
           FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey
           FIREBIRD_DATA_DIR: /firebird/data
-        run: ruby -Ilib:test test/FbTestSuite.rb --verbose --backtrace
+        run: ruby -Ilib:test test/FbTestSuite.rb --verbose

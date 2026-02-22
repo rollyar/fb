@@ -204,3 +204,10 @@ FIREBIRD_DATA_DIR=/path/to/data
 ## License
 
 MIT License
+
+## TODO
+
+- [ ] Add support for DECFLOAT(16) and DECFLOAT(34) types (Firebird 4+)
+
+Note: UUID is supported via GEN_UUID() function - stores as CHAR(16) OCTETS or VARCHAR(36)
+

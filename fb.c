@@ -2506,8 +2506,9 @@ static VALUE cursor_execute2(VALUE args)
 	/* Reallocate i_sqlda if needed */
 	in_params = fb_cursor->i_sqlda->sqld;
 	if (fb_cursor->i_sqlda->sqln < in_params) {
+		long new_in_params = in_params;
 		xfree(fb_cursor->i_sqlda);
-		fb_cursor->i_sqlda = sqlda_alloc(in_params);
+		fb_cursor->i_sqlda = sqlda_alloc(new_in_params);
 		isc_dsql_describe_bind(fb_connection->isc_status, &fb_cursor->stmt, 1, fb_cursor->i_sqlda);
 		fb_error_check(fb_connection->isc_status);
 	}
@@ -2531,8 +2532,9 @@ static VALUE cursor_execute2(VALUE args)
 
 	/* Reallocate o_sqlda if prepare needed more slots */
 	if (fb_cursor->o_sqlda->sqln < fb_cursor->o_sqlda->sqld) {
+		long new_sqld = fb_cursor->o_sqlda->sqld;
 		xfree(fb_cursor->o_sqlda);
-		fb_cursor->o_sqlda = sqlda_alloc(fb_cursor->o_sqlda->sqld);
+		fb_cursor->o_sqlda = sqlda_alloc(new_sqld);
 		isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt, 1, fb_cursor->o_sqlda);
 		fb_error_check(fb_connection->isc_status);
 	}
@@ -2595,12 +2597,8 @@ static VALUE cursor_execute2(VALUE args)
 		 * it would yield garbage or stale data.
 		 */
 		if (rows_affected > 0) {
-			int state = 0;
-			returning_row = (VALUE)rb_protect(
-				(VALUE(*)(VALUE))fb_cursor_read_returning,
-				(VALUE)fb_cursor,
-				&state);
-			if (state != 0 || NIL_P(returning_row)) {
+			returning_row = fb_cursor_read_returning(fb_cursor, fb_connection);
+			if (NIL_P(returning_row)) {
 				returning_row = rb_ary_new();
 			}
 		} else {
@@ -2682,8 +2680,9 @@ static VALUE cursor_execute2(VALUE args)
 		/* May need to re-describe if sqln was too small (shouldn't happen after
 		 * the realloc above, but be safe) */
 		if (fb_cursor->o_sqlda->sqln < out_cols) {
+			long new_out_cols = out_cols;
 			xfree(fb_cursor->o_sqlda);
-			fb_cursor->o_sqlda = sqlda_alloc(out_cols);
+			fb_cursor->o_sqlda = sqlda_alloc(new_out_cols);
 			isc_dsql_describe(fb_connection->isc_status, &fb_cursor->stmt, 1, fb_cursor->o_sqlda);
 			fb_error_check(fb_connection->isc_status);
 			out_cols = fb_cursor->o_sqlda->sqld;

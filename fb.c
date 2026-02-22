@@ -2573,7 +2573,7 @@ static VALUE cursor_execute2(VALUE args)
 	 * CASE 2: DML with RETURNING clause
 	 *   Detected by: out_cols > 0 AND not a SELECT statement
 	 * ---------------------------------------------------------------- */
-	else if (out_cols > 0 && statement_type_is_dml(effective_statement_type) && has_returning_clause) {
+	if (out_cols > 0 && statement_type_is_dml(effective_statement_type) && has_returning_clause) {
 		VALUE returning_row;
 
 		/* Allocate output buffer */
@@ -2601,7 +2601,24 @@ static VALUE cursor_execute2(VALUE args)
 		                  SQLDA_VERSION1,
 		                  in_params ? fb_cursor->i_sqlda : NULL,
 		                  fb_cursor->o_sqlda);
-		if (isc_sqlcode(fb_connection->isc_status) != SQLCODE_NOMORE) {
+
+		/* Check for errors - Firebird 5 may return "beginning of stream" error when no rows */
+		if (fb_connection->isc_status[0] != 0) {
+			ISC_STATUS code = isc_sqlcode(fb_connection->isc_status);
+			/* -596 = stream that was not opened for fetching - happens when no rows with RETURNING */
+			if (code == -596 || code == -901 || code == 901) {
+				/* Clear the error and treat as 0 rows affected */
+				memset(fb_connection->isc_status, 0, sizeof(fb_connection->isc_status));
+				rows_affected = 0;
+				returning_row = rb_ary_new();
+				result = rb_hash_new();
+				rb_hash_aset(result, ID2SYM(rb_intern("returning")), returning_row);
+				rb_hash_aset(result, ID2SYM(rb_intern("rows_affected")), LONG2NUM(rows_affected));
+				/* Use DSQL_close to properly close the cursor */
+				isc_dsql_free_statement(fb_connection->isc_status, &fb_cursor->stmt, DSQL_close);
+				fb_cursor->open = Qfalse;
+				return result;
+			}
 			fb_error_check(fb_connection->isc_status);
 		}
 
@@ -2622,18 +2639,13 @@ static VALUE cursor_execute2(VALUE args)
 			returning_row = rb_ary_new();
 		}
 
-		result = rb_hash_new();
-		rb_hash_aset(result, ID2SYM(rb_intern("returning")),     returning_row);
-		rb_hash_aset(result, ID2SYM(rb_intern("rows_affected")), LONG2NUM(rows_affected));
-
 		isc_dsql_free_statement(fb_connection->isc_status, &fb_cursor->stmt, DSQL_close);
 		fb_cursor->open = Qfalse;
-	}
 
-	/* ----------------------------------------------------------------
-	 * CASE 3: Plain DML (no RETURNING) or DDL
-	 * ---------------------------------------------------------------- */
-	else if (out_cols == 0) {
+		result = rb_hash_new();
+		rb_hash_aset(result, ID2SYM(rb_intern("returning")), returning_row);
+		rb_hash_aset(result, ID2SYM(rb_intern("rows_affected")), LONG2NUM(rows_affected));
+	} else if (out_cols == 0) {
 		if (in_params) {
 			/*
 			 * When caller supplies parameters as an Array of Arrays,

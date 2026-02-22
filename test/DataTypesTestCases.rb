@@ -212,7 +212,7 @@ class DataTypesTestCases < FbTestCase
         );
       END
       sql_insert = 'insert into test_aggregate (id, v_int, v_smallint, v_bigint) values (?, ?, ?, ?)'
-      sql_select = <<-END
+      sql_select = '
         select
           sum(v_int),
           (select sum(v_int) * 1.0 / count(*) from test_aggregate),
@@ -221,10 +221,9 @@ class DataTypesTestCases < FbTestCase
           (select sum(v_smallint) * 1.0 / count(*) from test_aggregate),
           max(v_smallint),
           sum(v_bigint),
-          (select sum(v_bigint) * 1e0 / count(*) from test_aggregate),
+          (select sum(v_bigint) * 1.0 / count(*) from test_aggregate),
           max(v_bigint)
-        from test_aggregate
-      END
+        from test_aggregate'
 
       connection.execute(sql_schema)
 

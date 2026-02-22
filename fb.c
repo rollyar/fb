@@ -2575,8 +2575,7 @@ static VALUE cursor_execute2(VALUE args)
 
 		/*
 		 * Execute passing the output SQLDA so Firebird writes RETURNING values
-		 * directly into our buffer. No subsequent fetch is needed for single-row
-		 * RETURNING (which is the only kind Firebird supports in DML).
+		 * directly into our buffer. Then fetch the row.
 		 */
 		isc_dsql_execute2(fb_connection->isc_status,
 		                  &fb_connection->transact,
@@ -2591,18 +2590,24 @@ static VALUE cursor_execute2(VALUE args)
 		rows_affected = cursor_rows_affected(fb_cursor, effective_statement_type);
 
 		/*
-		 * Only read the RETURNING buffer if at least one row was affected.
-		 * When rows_affected == 0 (e.g. UPDATE WHERE matched nothing),
-		 * Firebird did not write into the output SQLDA buffer, so reading
-		 * it would yield garbage or stale data.
+		 * Fetch the RETURNING row. For DML with RETURNING, Firebird creates
+		 * a cursor that needs to be fetched. Even if 0 rows were affected,
+		 * we need to attempt the fetch to clear the cursor state.
 		 */
-		if (rows_affected > 0) {
-			returning_row = fb_cursor_read_returning(fb_cursor, fb_connection);
-			if (NIL_P(returning_row)) {
+		{
+			int fetch_rc = isc_dsql_fetch(fb_connection->isc_status, &fb_cursor->stmt, 1, fb_cursor->o_sqlda);
+			if (fetch_rc == SQLCODE_NOMORE) {
+				returning_row = rb_ary_new();
+			} else if (fetch_rc == 0) {
+				returning_row = fb_cursor_read_returning(fb_cursor, fb_connection);
+				if (NIL_P(returning_row)) {
+					returning_row = rb_ary_new();
+				}
+				isc_dsql_fetch(fb_connection->isc_status, &fb_cursor->stmt, 1, fb_cursor->o_sqlda);
+			} else {
+				fb_error_check(fb_connection->isc_status);
 				returning_row = rb_ary_new();
 			}
-		} else {
-			returning_row = rb_ary_new();
 		}
 
 		result = rb_hash_new();

@@ -219,10 +219,12 @@ class DataTypesTestCases < FbTestCase
                                                                                                            end})"
       sql_select = <<-END
         select
-          sum(v_int), sum(v_int) * 1.0 / count(*), max(v_int),
-          sum(v_smallint), sum(v_smallint) * 1.0 / count(*), max(v_smallint),
-          sum(v_bigint), sum(v_bigint) * 1e0 / count(*), max(v_bigint)
-          #{', sum(v_int128), sum(v_int128) * 1e0 / count(*), max(v_int128)' if supports_int128}
+          sum(v_int), (select sum(v_int) * 1.0 / count(*) from test_aggregate), max(v_int),
+          sum(v_smallint), (select sum(v_smallint) * 1.0 / count(*) from test_aggregate), max(v_smallint),
+          sum(v_bigint), (select sum(v_bigint) * 1e0 / count(*) from test_aggregate), max(v_bigint)
+          #{if supports_int128
+              ', sum(v_int128), (select sum(v_int128) * 1e0 / count(*) from test_aggregate), max(v_int128)'
+            end}
         from test_aggregate
       END
 

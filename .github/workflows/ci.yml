@@ -8,76 +8,83 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    name: Minitest Tests
+    runs-on: ubuntu-22.04
 
     services:
       firebird:
         image: firebirdsql/firebird:latest
         env:
           FIREBIRD_ROOT_PASSWORD: masterkey
+        options: >-
+          --health-cmd "bash -c 'echo \"SELECT 1 FROM RDB\\\$DATABASE;\" | isql-fb -user SYSDBA -password masterkey localhost 2>&1 | grep -q \"1\"' || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 15
         ports:
           - 3050:3050
+
     steps:
       - uses: actions/checkout@v4
 
-      # -----------------------------------
-      # Firebird 5 client (official tarball)
-      # -----------------------------------
-      - name: Install system dependencies
+      - name: Install Firebird Client Libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y firebird-dev libfbclient2 netcat-openbsd ruby-dev
+          sudo apt-get install -y firebird-dev libfbclient2 netcat-openbsd
           if [ -d /usr/include/firebird ] && [ ! -f /usr/include/ibase.h ]; then
             sudo ln -sf /usr/include/firebird/ibase.h /usr/include/ibase.h
           fi
 
-      # -------------------------------
-      # Ruby
-      # -------------------------------
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3.6'
+          bundler-cache: false
 
-      # -------------------------------
-      # Build native extension
-      # -------------------------------
       - name: Build extension
         run: |
           ruby extconf.rb
           make
 
-      # -------------------------------
-      # Verify ABI
-      # -------------------------------
-      - name: Verify Firebird linkage
-        run: |
-          ldd ./fb.so | grep fbclient
-
-      # -------------------------------
-      # Wait for Firebird
-      # -------------------------------
       - name: Wait for Firebird
         run: |
+          echo "Waiting for Firebird to be ready..."
+          for i in {1..60}; do
+            if nc -z localhost 3050 2>/dev/null; then
+              echo "✓ Port 3050 is open"
+              break
+            fi
+            echo "Attempt $i/60: Port 3050 not ready yet, waiting..."
+            sleep 1
+          done
+
+          echo "Testing Firebird connection with SYSDBA..."
           for i in {1..30}; do
-            if echo "SELECT 1 FROM RDB\$DATABASE;" | \
-              isql-fb -user SYSDBA -password masterkey localhost | grep -q 1; then
+            echo "Attempt $i/30: Trying to connect..."
+            if echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost 2>&1 | grep -q "1"; then
+              echo "✓ Firebird is ready and responding"
               exit 0
             fi
             sleep 1
           done
-          echo "Firebird not responding"
+
+          echo "❌ Firebird failed to respond after 30 attempts"
           exit 1
 
-      # -------------------------------
-      # Run tests
-      # -------------------------------
+      - name: Get Firebird container name
+        run: |
+          CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird:latest" --format "{{.Names}}" | head -1)
+          if [ -z "$CONTAINER_NAME" ]; then
+            CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird" --format "{{.Names}}" | head -1)
+          fi
+          echo "Container: $CONTAINER_NAME"
+          docker exec $CONTAINER_NAME mkdir -p /firebird/data
+          docker exec $CONTAINER_NAME chown -R firebird:firebird /firebird/data
+
       - name: Run Tests
         env:
           FIREBIRD_HOST: localhost
           FIREBIRD_PORT: 3050
           FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey
-          LANG: en_US.UTF-8
-          LC_ALL: en_US.UTF-8
-        run: |
-          ruby -Ilib:test test/FbTestSuite.rb --verbose --backtrace
+          FIREBIRD_DATA_DIR: /firebird/data
+        run: ruby -Ilib:test test/FbTestSuite.rb --verbose --backtrace

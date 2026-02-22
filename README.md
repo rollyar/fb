@@ -123,10 +123,14 @@ conn.transaction("READ COMMITTED") do
 end
 ```
 
-## RETURNING Clause (Firebird 2.0+)
+## RETURNING Clause
 
-The `execute()` method supports `INSERT`, `UPDATE`, and `DELETE` with `RETURNING` clause. Returns a `Hash`:
+The `execute()` method supports `INSERT`, `UPDATE`, and `DELETE` with `RETURNING` clause:
+- **INSERT RETURNING**: Firebird 2.0+
+- **UPDATE RETURNING**: Firebird 2.1+
+- **DELETE RETURNING**: Firebird 2.5+
 
+Returns a `Hash`:
 - `:returning` - Array of returned values
 - `:rows_affected` - Number of rows affected
 

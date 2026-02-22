@@ -35,8 +35,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl libncurses5
 
-          curl -L -o firebird.tar.gz \
-            https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1656-0-linux-x64.tar.gz
+          curl -fL -o firebird.tar.gz \
+            https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-0-linux-x64.tar.gz
+
+          ls -lh firebird.tar.gz
+          file firebird.tar.gz
 
           tar -xzf firebird.tar.gz
           cd Firebird-5.0.3.1656-0-linux-x64

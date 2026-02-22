@@ -8,7 +8,6 @@ on:
 
 jobs:
   test:
-    name: Minitest Tests
     runs-on: ubuntu-22.04
 
     services:
@@ -16,54 +15,35 @@ jobs:
         image: firebirdsql/firebird:5.0.3
         env:
           FIREBIRD_ROOT_PASSWORD: masterkey
+        ports:
+          - 3050:3050
         options: >-
           --health-cmd "bash -c 'echo \"SELECT 1 FROM RDB\\\$DATABASE;\" | isql-fb -user SYSDBA -password masterkey localhost 2>&1 | grep -q \"1\"' || exit 1"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 15
-        ports:
-          - 3050:3050
 
     steps:
       - uses: actions/checkout@v4
 
-      # -------------------------------
-      # Extraer libfbclient + headers
-      # desde el contenedor Firebird 5
-      # -------------------------------
-      - name: Extract Firebird client from container
+      # -------------------------------------------------
+      # Firebird 5 CLIENT (oficial, silent, reproducible)
+      # -------------------------------------------------
+      - name: Install Firebird 5 client (official tarball)
         run: |
           set -e
+          sudo apt-get update
+          sudo apt-get install -y curl libncurses5
 
-          CONTAINER=$(docker ps --filter "ancestor=firebirdsql/firebird:5.0.3" --format "{{.Names}}" | head -n1)
-          echo "Using Firebird container: $CONTAINER"
+          curl -L -o firebird.tar.gz \
+            https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1656-0-linux-x64.tar.gz
 
-          echo "Searching libfbclient.so.5 inside container..."
-          docker exec $CONTAINER find / -name "libfbclient.so.5" 2>/dev/null
+          tar -xzf firebird.tar.gz
+          cd Firebird-5.0.3.1656-0-linux-x64
+          sudo ./install.sh -silent
 
-          FBCLIENT_PATH=$(docker exec $CONTAINER sh -c 'find / -name "libfbclient.so.5" 2>/dev/null | head -n1')
-
-          if [ -z "$FBCLIENT_PATH" ]; then
-            echo "❌ libfbclient.so.5 not found in container"
-            exit 1
-          fi
-
-          echo "Found libfbclient at: $FBCLIENT_PATH"
-          docker cp $CONTAINER:$FBCLIENT_PATH .
-          sudo cp libfbclient.so.5 /usr/lib/
+          echo "/opt/firebird/lib" | sudo tee /etc/ld.so.conf.d/firebird.conf
           sudo ldconfig
-
-          echo "Copying Firebird headers..."
-          HEADER_PATH=$(docker exec $CONTAINER sh -c 'find / -name ibase.h 2>/dev/null | head -n1 | xargs dirname')
-
-          if [ -z "$HEADER_PATH" ]; then
-            echo "❌ ibase.h not found in container"
-            exit 1
-          fi
-
-          echo "Found headers at: $HEADER_PATH"
-          docker cp $CONTAINER:$HEADER_PATH ./firebird_headers
-          sudo cp -r firebird_headers/* /usr/include/
 
       # -------------------------------
       # Ruby
@@ -73,56 +53,41 @@ jobs:
           ruby-version: '3.3.6'
 
       # -------------------------------
-      # Compilar extensión nativa
+      # Build native extension
       # -------------------------------
       - name: Build extension
+        env:
+          FIREBIRD_HOME: /opt/firebird
         run: |
-          ruby extconf.rb
+          ruby extconf.rb \
+            --with-firebird-include=/opt/firebird/include \
+            --with-firebird-lib=/opt/firebird/lib
           make
 
       # -------------------------------
-      # Verificación ABI (crítica)
+      # Verify ABI (critical)
       # -------------------------------
-      - name: Verify Firebird client linkage
+      - name: Verify Firebird linkage
         run: |
           ldd ./fb.so | grep fbclient
 
       # -------------------------------
-      # Esperar Firebird
+      # Wait for Firebird server
       # -------------------------------
       - name: Wait for Firebird
         run: |
-          echo "Waiting for Firebird..."
-          for i in {1..60}; do
-            if nc -z localhost 3050 2>/dev/null; then
-              echo "✓ Port 3050 is open"
-              break
-            fi
-            sleep 1
-          done
-
           for i in {1..30}; do
-            if echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost 2>/dev/null | grep -q "1"; then
-              echo "✓ Firebird responding"
+            if echo "SELECT 1 FROM RDB\$DATABASE;" | \
+              isql-fb -user SYSDBA -password masterkey localhost 2>/dev/null | grep -q 1; then
               exit 0
             fi
             sleep 1
           done
-
-          echo "❌ Firebird not responding"
+          echo "Firebird not responding"
           exit 1
 
       # -------------------------------
-      # Directorio de datos
-      # -------------------------------
-      - name: Prepare Firebird data dir
-        run: |
-          CONTAINER=$(docker ps --filter "ancestor=firebirdsql/firebird:5.0.3" --format "{{.Names}}" | head -n1)
-          docker exec $CONTAINER mkdir -p /firebird/data
-          docker exec $CONTAINER chown -R firebird:firebird /firebird/data
-
-      # -------------------------------
-      # Ejecutar tests
+      # Run tests
       # -------------------------------
       - name: Run Tests
         env:
@@ -130,7 +95,6 @@ jobs:
           FIREBIRD_PORT: 3050
           FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey
-          FIREBIRD_DATA_DIR: /firebird/data
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
         run: |

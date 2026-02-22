@@ -13,7 +13,7 @@ jobs:
 
     services:
       firebird:
-        image: firebirdsql/firebird:latest
+        image: firebirdsql/firebird:5.0.3
         env:
           FIREBIRD_ROOT_PASSWORD: masterkey
         options: >-
@@ -27,67 +27,84 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract libfbclient from container
+      # -------------------------------
+      # Extraer libfbclient + headers
+      # desde el contenedor Firebird 5
+      # -------------------------------
+      - name: Extract Firebird client from container
         run: |
-          CONTAINER=$(docker ps --filter "ancestor=firebirdsql/firebird:latest" --format "{{.Names}}" | head -n1)
-          docker cp $CONTAINER:/opt/firebird/lib/libfbclient.so.5* .
-          sudo cp libfbclient.so.5* /usr/lib/
+          set -e
+          CONTAINER=$(docker ps --filter "ancestor=firebirdsql/firebird:5.0.3" --format "{{.Names}}" | head -n1)
+          echo "Using Firebird container: $CONTAINER"
+
+          echo "Copying libfbclient.so.5"
+          docker cp $CONTAINER:/usr/lib/x86_64-linux-gnu/libfbclient.so.5 .
+          sudo cp libfbclient.so.5 /usr/lib/
           sudo ldconfig
 
-      # - name: Install system dependencies
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y firebird-dev libfbclient2 netcat-openbsd ruby-dev
-      #     if [ -d /usr/include/firebird ] && [ ! -f /usr/include/ibase.h ]; then
-      #       sudo ln -sf /usr/include/firebird/ibase.h /usr/include/ibase.h
-      #     fi
+          echo "Copying Firebird headers"
+          docker cp $CONTAINER:/usr/include/firebird ./firebird_headers
+          sudo cp -r firebird_headers/* /usr/include/
 
+      # -------------------------------
+      # Ruby
+      # -------------------------------
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3.6'
-          # bundler-cache: false
-          # headers-cache: true
 
+      # -------------------------------
+      # Compilar extensión nativa
+      # -------------------------------
       - name: Build extension
         run: |
           ruby extconf.rb
           make
 
+      # -------------------------------
+      # Verificación ABI (crítica)
+      # -------------------------------
+      - name: Verify Firebird client linkage
+        run: |
+          ldd ./fb.so | grep fbclient
+
+      # -------------------------------
+      # Esperar Firebird
+      # -------------------------------
       - name: Wait for Firebird
         run: |
-          echo "Waiting for Firebird to be ready..."
+          echo "Waiting for Firebird..."
           for i in {1..60}; do
             if nc -z localhost 3050 2>/dev/null; then
               echo "✓ Port 3050 is open"
               break
             fi
-            echo "Attempt $i/60: Port 3050 not ready yet, waiting..."
             sleep 1
           done
 
-          echo "Testing Firebird connection with SYSDBA..."
           for i in {1..30}; do
-            echo "Attempt $i/30: Trying to connect..."
-            if echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost 2>&1 | grep -q "1"; then
-              echo "✓ Firebird is ready and responding"
+            if echo "SELECT 1 FROM RDB\$DATABASE;" | isql-fb -user SYSDBA -password masterkey localhost 2>/dev/null | grep -q "1"; then
+              echo "✓ Firebird responding"
               exit 0
             fi
             sleep 1
           done
 
-          echo "❌ Firebird failed to respond after 30 attempts"
+          echo "❌ Firebird not responding"
           exit 1
 
-      - name: Get Firebird container name
+      # -------------------------------
+      # Directorio de datos
+      # -------------------------------
+      - name: Prepare Firebird data dir
         run: |
-          CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird:4" --format "{{.Names}}" | head -1)
-          if [ -z "$CONTAINER_NAME" ]; then
-            CONTAINER_NAME=$(docker ps --filter "ancestor=firebirdsql/firebird" --format "{{.Names}}" | head -1)
-          fi
-          echo "Container: $CONTAINER_NAME"
-          docker exec $CONTAINER_NAME mkdir -p /firebird/data
-          docker exec $CONTAINER_NAME chown -R firebird:firebird /firebird/data
+          CONTAINER=$(docker ps --filter "ancestor=firebirdsql/firebird:5.0.3" --format "{{.Names}}" | head -n1)
+          docker exec $CONTAINER mkdir -p /firebird/data
+          docker exec $CONTAINER chown -R firebird:firebird /firebird/data
 
+      # -------------------------------
+      # Ejecutar tests
+      # -------------------------------
       - name: Run Tests
         env:
           FIREBIRD_HOST: localhost
@@ -95,4 +112,7 @@ jobs:
           FIREBIRD_USER: SYSDBA
           FIREBIRD_PASSWORD: masterkey
           FIREBIRD_DATA_DIR: /firebird/data
-        run: ruby -Ilib:test test/FbTestSuite.rb --verbose
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+        run: |
+          ruby -Ilib:test test/FbTestSuite.rb --verbose --backtrace

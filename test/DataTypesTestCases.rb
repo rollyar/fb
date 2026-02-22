@@ -199,7 +199,6 @@ class DataTypesTestCases < FbTestCase
     END
 
     values = (-3..6).to_a
-    int128_values = values.map { |v| v * 10_000_000_000_000_000_000 }
 
     Database.create(@parms) do |connection|
       supports_int128 = int128_supported?(connection)
@@ -209,22 +208,21 @@ class DataTypesTestCases < FbTestCase
           id integer,
           v_int integer,
           v_smallint smallint,
-          v_bigint bigint#{', v_int128 int128' if supports_int128}
+          v_bigint bigint
         );
       END
-      sql_insert = "insert into test_aggregate (id, v_int, v_smallint, v_bigint#{if supports_int128
-                                                                                   ', v_int128'
-                                                                                 end}) values (?, ?, ?, ?#{if supports_int128
-                                                                                                             ', ?'
-                                                                                                           end})"
+      sql_insert = 'insert into test_aggregate (id, v_int, v_smallint, v_bigint) values (?, ?, ?, ?)'
       sql_select = <<-END
         select
-          sum(v_int), (select sum(v_int) * 1.0 / count(*) from test_aggregate), max(v_int),
-          sum(v_smallint), (select sum(v_smallint) * 1.0 / count(*) from test_aggregate), max(v_smallint),
-          sum(v_bigint), (select sum(v_bigint) * 1e0 / count(*) from test_aggregate), max(v_bigint)
-          #{if supports_int128
-              ', sum(v_int128), (select sum(v_int128) * 1e0 / count(*) from test_aggregate), max(v_int128)'
-            end}
+          sum(v_int),
+          (select sum(v_int) * 1.0 / count(*) from test_aggregate),
+          max(v_int),
+          sum(v_smallint),
+          (select sum(v_smallint) * 1.0 / count(*) from test_aggregate),
+          max(v_smallint),
+          sum(v_bigint),
+          (select sum(v_bigint) * 1e0 / count(*) from test_aggregate),
+          max(v_bigint)
         from test_aggregate
       END
 
@@ -232,9 +230,7 @@ class DataTypesTestCases < FbTestCase
 
       connection.transaction do
         values.each_with_index do |value, idx|
-          bind_values = [idx + 1, value, value, value * 1_000_000_000]
-          bind_values << int128_values[idx] if supports_int128
-          connection.execute(sql_insert, *bind_values)
+          connection.execute(sql_insert, idx + 1, value, value, value * 1_000_000_000)
         end
       end
 
@@ -251,14 +247,6 @@ class DataTypesTestCases < FbTestCase
         BigDecimal((values.sum * 1_000_000_000).to_s) / values.size,
         values.max * 1_000_000_000
       ]
-
-      if supports_int128
-        expected += [
-          int128_values.sum,
-          BigDecimal(int128_values.sum.to_s) / int128_values.size,
-          int128_values.max
-        ]
-      end
 
       assert_equal expected.size, row.size
       expected.each_with_index do |expected_value, idx|

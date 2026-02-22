@@ -38,8 +38,8 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3.6'
-          bundler-cache: false
-          headers-cache: true
+          # bundler-cache: false
+          # headers-cache: true
 
       - name: Build extension
         run: |

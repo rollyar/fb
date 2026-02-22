@@ -18,7 +18,7 @@ jobs:
         ports:
           - 3050:3050
         options: >-
-          --health-cmd "bash -c 'echo \"SELECT 1 FROM RDB\\\$DATABASE;\" | isql-fb -user SYSDBA -password masterkey localhost 2>&1 | grep -q \"1\"' || exit 1"
+          --health-cmd "bash -c 'echo \"SELECT 1 FROM RDB\\\$DATABASE;\" | isql-fb -user SYSDBA -password masterkey localhost | grep -q 1'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 15
@@ -26,27 +26,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # -------------------------------------------------
-      # Firebird 5 CLIENT (oficial, silent, reproducible)
-      # -------------------------------------------------
-      - name: Install Firebird 5 client (official tarball)
+      # -----------------------------------
+      # Firebird 5 client (official tarball)
+      # -----------------------------------
+      - name: Install Firebird 5 client
         run: |
           set -e
+
           sudo apt-get update
-          sudo apt-get install -y curl libncurses5
+          sudo apt-get install -y curl libncurses5 libtinfo5
 
           curl -fL -o firebird.tar.gz \
             https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-0-linux-x64.tar.gz
 
-          ls -lh firebird.tar.gz
-          file firebird.tar.gz
-
           tar -xzf firebird.tar.gz
-          cd Firebird-5.0.3.1656-0-linux-x64
+
+          FB_DIR=$(tar -tf firebird.tar.gz | head -1 | cut -d/ -f1)
+          echo "Using Firebird dir: $FB_DIR"
+
+          cd "$FB_DIR"
           sudo ./install.sh -silent
 
           echo "/opt/firebird/lib" | sudo tee /etc/ld.so.conf.d/firebird.conf
           sudo ldconfig
+
+          /opt/firebird/bin/isql-fb -z
 
       # -------------------------------
       # Ruby
@@ -68,20 +72,20 @@ jobs:
           make
 
       # -------------------------------
-      # Verify ABI (critical)
+      # Verify ABI
       # -------------------------------
       - name: Verify Firebird linkage
         run: |
           ldd ./fb.so | grep fbclient
 
       # -------------------------------
-      # Wait for Firebird server
+      # Wait for Firebird
       # -------------------------------
       - name: Wait for Firebird
         run: |
           for i in {1..30}; do
             if echo "SELECT 1 FROM RDB\$DATABASE;" | \
-              isql-fb -user SYSDBA -password masterkey localhost 2>/dev/null | grep -q 1; then
+              isql-fb -user SYSDBA -password masterkey localhost | grep -q 1; then
               exit 0
             fi
             sleep 1

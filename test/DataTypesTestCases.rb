@@ -107,7 +107,6 @@ class DataTypesTestCases < FbTestCase
     false
   end
 
-
   def test_insert_basic_types
     sql_schema = <<-END
       create table TEST (
@@ -185,7 +184,11 @@ class DataTypesTestCases < FbTestCase
         v_bigint bigint#{', v_int128 int128' if supports_int128}
       );
     END
-    sql_insert = "insert into test_aggregate (id, v_int, v_smallint, v_bigint#{', v_int128' if supports_int128}) values (?, ?, ?, ?#{', ?' if supports_int128})"
+    sql_insert = "insert into test_aggregate (id, v_int, v_smallint, v_bigint#{if supports_int128
+                                                                                 ', v_int128'
+                                                                               end}) values (?, ?, ?, ?#{if supports_int128
+                                                                                                           ', ?'
+                                                                                                         end})"
     sql_select = <<-END
       select
         sum(v_int), avg(v_int), max(v_int),
@@ -209,13 +212,17 @@ class DataTypesTestCases < FbTestCase
           v_bigint bigint#{', v_int128 int128' if supports_int128}
         );
       END
-      sql_insert = "insert into test_aggregate (id, v_int, v_smallint, v_bigint#{', v_int128' if supports_int128}) values (?, ?, ?, ?#{', ?' if supports_int128})"
+      sql_insert = "insert into test_aggregate (id, v_int, v_smallint, v_bigint#{if supports_int128
+                                                                                   ', v_int128'
+                                                                                 end}) values (?, ?, ?, ?#{if supports_int128
+                                                                                                             ', ?'
+                                                                                                           end})"
       sql_select = <<-END
         select
-          sum(v_int), avg(v_int), max(v_int),
-          sum(v_smallint), avg(v_smallint), max(v_smallint),
-          sum(v_bigint), avg(v_bigint), max(v_bigint)
-          #{', sum(v_int128), avg(v_int128), max(v_int128)' if supports_int128}
+          sum(v_int), sum(v_int) * 1.0 / count(*), max(v_int),
+          sum(v_smallint), sum(v_smallint) * 1.0 / count(*), max(v_smallint),
+          sum(v_bigint), sum(v_bigint) * 1e0 / count(*), max(v_bigint)
+          #{', sum(v_int128), sum(v_int128) * 1e0 / count(*), max(v_int128)' if supports_int128}
         from test_aggregate
       END
 
@@ -633,9 +640,11 @@ class DataTypesTestCases < FbTestCase
       connection.execute(sql_schema)
 
       values = [
-        [0, BigDecimal('0'), BigDecimal('0')],
-        [12345678901234567890123456789012345678, BigDecimal('12345678901234567890123456789012.123456'), BigDecimal('-12345678901234567890123456789012.123456')],
-        [-12345678901234567890123456789012345678, BigDecimal('-12345678901234567890123456789012.123456'), BigDecimal('12345678901234567890123456789012.123456')]
+        [0, BigDecimal(0), BigDecimal(0)],
+        [12_345_678_901_234_567_890_123_456_789_012_345_678, BigDecimal('12345678901234567890123456789012.123456'),
+         BigDecimal('-12345678901234567890123456789012.123456')],
+        [-12_345_678_901_234_567_890_123_456_789_012_345_678, BigDecimal('-12345678901234567890123456789012.123456'),
+         BigDecimal('12345678901234567890123456789012.123456')]
       ]
 
       connection.transaction do

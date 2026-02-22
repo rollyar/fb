@@ -8,11 +8,11 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     services:
       firebird:
-        image: firebirdsql/firebird:5.0.3
+        image: firebirdsql/firebird:latest
         env:
           FIREBIRD_ROOT_PASSWORD: masterkey
         ports:
@@ -23,22 +23,13 @@ jobs:
       # -----------------------------------
       # Firebird 5 client (official tarball)
       # -----------------------------------
-      - name: Install Firebird 5 client
+      - name: Install system dependencies
         run: |
-          set -e
           sudo apt-get update
-          sudo apt-get install -y curl libncurses5 libtinfo5
-          curl -fL -o firebird.tar.gz \
-            https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-0-linux-x64.tar.gz
-          tar -xzf firebird.tar.gz
-          FB_DIR=$(tar -tf firebird.tar.gz | head -1 | cut -d/ -f1)
-          echo "Using Firebird dir: $FB_DIR"
-          cd "$FB_DIR"
-          # 🔑 CLIENT ONLY (crítico)
-          sudo ./install.sh -silent -client
-          echo "/opt/firebird/lib" | sudo tee /etc/ld.so.conf.d/firebird.conf
-          sudo ldconfig
-          /opt/firebird/bin/isql-fb -z
+          sudo apt-get install -y firebird-dev libfbclient2 netcat-openbsd ruby-dev
+          if [ -d /usr/include/firebird ] && [ ! -f /usr/include/ibase.h ]; then
+            sudo ln -sf /usr/include/firebird/ibase.h /usr/include/ibase.h
+          fi
 
       # -------------------------------
       # Ruby
@@ -51,12 +42,8 @@ jobs:
       # Build native extension
       # -------------------------------
       - name: Build extension
-        env:
-          FIREBIRD_HOME: /opt/firebird
         run: |
-          ruby extconf.rb \
-            --with-firebird-include=/opt/firebird/include \
-            --with-firebird-lib=/opt/firebird/lib
+          ruby extconf.rb
           make
 
       # -------------------------------

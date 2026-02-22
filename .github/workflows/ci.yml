@@ -26,24 +26,18 @@ jobs:
       - name: Install Firebird 5 client
         run: |
           set -e
-
           sudo apt-get update
           sudo apt-get install -y curl libncurses5 libtinfo5
-
           curl -fL -o firebird.tar.gz \
             https://github.com/FirebirdSQL/firebird/releases/download/v5.0.3/Firebird-5.0.3.1683-0-linux-x64.tar.gz
-
           tar -xzf firebird.tar.gz
-
           FB_DIR=$(tar -tf firebird.tar.gz | head -1 | cut -d/ -f1)
           echo "Using Firebird dir: $FB_DIR"
-
           cd "$FB_DIR"
-          sudo ./install.sh -silent
-
+          # 🔑 CLIENT ONLY (crítico)
+          sudo ./install.sh -silent -client
           echo "/opt/firebird/lib" | sudo tee /etc/ld.so.conf.d/firebird.conf
           sudo ldconfig
-
           /opt/firebird/bin/isql-fb -z
 
       # -------------------------------

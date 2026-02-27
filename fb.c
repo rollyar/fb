@@ -2065,8 +2065,11 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 						isc_get_segment(fb_connection->isc_status, &blob_handle, &actual_seg_len, max_segment, p);
 						fb_error_check(fb_connection->isc_status);
 					}
+					/* Only apply encoding for text blobs (subtype 1), not for binary */
 					#if HAVE_RUBY_ENCODING_H
-					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
+					if (var->sqlsubtype == 1) {
+						rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
+					}
 					#endif
 					isc_close_blob(fb_connection->isc_status, &blob_handle);
 					fb_error_check(fb_connection->isc_status);

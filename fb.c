@@ -1979,6 +1979,9 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 				case SQL_VARYING:
 					vary = (VARY*)var->sqldata;
 					val = rb_str_new(vary->vary_string, vary->vary_length);
+					#if HAVE_RUBY_ENCODING_H
+					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
+					#endif
 					break;
 
 				case SQL_SHORT:
@@ -2032,20 +2035,10 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					break;
 
 				case SQL_BLOB:
-				{
-					/*
-					 * Read a BLOB robustly:
-					 * 1. Query max_segment, num_segments and total_length from blob_info.
-					 * 2. Pre-allocate the Ruby string with total_length.
-					 * 3. Read all segments using num_segments loop.
-					 */
 					blob_handle = 0;
 					blob_id = *(ISC_QUAD *)var->sqldata;
-					isc_open_blob2(fb_connection->isc_status, &fb_connection->db,
-					               &fb_connection->transact, &blob_handle, &blob_id, 0, NULL);
+					isc_open_blob2(fb_connection->isc_status, &fb_connection->db, &fb_connection->transact, &blob_handle, &blob_id, 0, NULL);
 					fb_error_check(fb_connection->isc_status);
-
-					/* Get blob info to pre-allocate */
 					isc_blob_info(
 						fb_connection->isc_status, &blob_handle,
 						sizeof(blob_items), blob_items,
@@ -2053,38 +2046,31 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					fb_error_check(fb_connection->isc_status);
 					for (p = blob_info; *p != isc_info_end; p += length) {
 						item = *p++;
-						length = (short) isc_vax_integer(p, 2);
+						length = (short) isc_vax_integer(p,2);
 						p += 2;
 						switch (item) {
 							case isc_info_blob_max_segment:
-								max_segment = isc_vax_integer(p, length);
+								max_segment = isc_vax_integer(p,length);
 								break;
 							case isc_info_blob_num_segments:
-								num_segments = isc_vax_integer(p, length);
+								num_segments = isc_vax_integer(p,length);
 								break;
 							case isc_info_blob_total_length:
-								total_length = isc_vax_integer(p, length);
+								total_length = isc_vax_integer(p,length);
 								break;
 						}
 					}
-
-					/* Pre-allocate the result string */
-					val = rb_str_new(NULL, total_length);
-
-					/* Read all blob segments */
+					val = rb_str_new(NULL,total_length);
 					for (p = RSTRING_PTR(val); num_segments > 0; num_segments--, p += actual_seg_len) {
 						isc_get_segment(fb_connection->isc_status, &blob_handle, &actual_seg_len, max_segment, p);
 						fb_error_check(fb_connection->isc_status);
 					}
-
 					#if HAVE_RUBY_ENCODING_H
 					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					isc_close_blob(fb_connection->isc_status, &blob_handle);
 					fb_error_check(fb_connection->isc_status);
 					break;
-				}
-
 				case SQL_ARRAY:
 					rb_warn("ARRAY not supported (yet)");
 					val = Qnil;

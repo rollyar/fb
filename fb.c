@@ -1970,17 +1970,11 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 			switch (dtp) {
 				case SQL_TEXT:
 					val = rb_str_new(var->sqldata, var->sqllen);
-					#if HAVE_RUBY_ENCODING_H
-					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
-					#endif
 					break;
 
 				case SQL_VARYING:
 					vary = (VARY*)var->sqldata;
 					val = rb_str_new(vary->vary_string, vary->vary_length);
-					#if HAVE_RUBY_ENCODING_H
-					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
-					#endif
 					break;
 
 				case SQL_SHORT:
@@ -2129,14 +2123,7 @@ static VALUE fb_cursor_fetch(struct FbCursor *fb_cursor)
 					}
 
 					#if HAVE_RUBY_ENCODING_H
-					/*
-					 * BLOB SUB_TYPE 1 = text: apply connection encoding (UTF-8 by default).
-					 * BLOB SUB_TYPE 0 = binary: keep ASCII-8BIT — applying a text encoding
-					 * to binary data corrupts .size and byte comparisons in Ruby.
-					 */
-					if (var->sqlsubtype == 1) {
-						rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
-					}
+					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
 					#endif
 					isc_close_blob(fb_connection->isc_status, &blob_handle);
 					fb_error_check(fb_connection->isc_status);
@@ -2274,17 +2261,11 @@ static VALUE fb_cursor_read_returning(struct FbCursor *fb_cursor, struct FbConne
 			switch (dtp) {
 				case SQL_TEXT:
 					val = rb_str_new(var->sqldata, var->sqllen);
-					#if HAVE_RUBY_ENCODING_H
-					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
-					#endif
 					break;
 
 				case SQL_VARYING:
 					vary = (VARY*)var->sqldata;
 					val = rb_str_new(vary->vary_string, vary->vary_length);
-					#if HAVE_RUBY_ENCODING_H
-					rb_funcall(val, id_force_encoding, 1, fb_connection->encoding);
-					#endif
 					break;
 
 				case SQL_SHORT:
@@ -3371,7 +3352,7 @@ static VALUE database_initialize(int argc, VALUE *argv, VALUE self)
 		rb_iv_set(self, "@charset", default_string(parms, "charset", "NONE"));
 		rb_iv_set(self, "@role", rb_hash_aref(parms, ID2SYM(rb_intern("role"))));
 		rb_iv_set(self, "@downcase_names", rb_hash_aref(parms, ID2SYM(rb_intern("downcase_names"))));
-		rb_iv_set(self, "@encoding", default_string(parms, "encoding", "UTF-8"));
+		rb_iv_set(self, "@encoding", default_string(parms, "encoding", "ASCII-8BIT"));
 		rb_iv_set(self, "@page_size", default_int(parms, "page_size", 4096));
 	}
 	return self;

@@ -4,8 +4,9 @@ A Ruby extension for connecting to Firebird databases.
 
 ## Requirements
 
-- Ruby 2.0+
+- Ruby 2.0+ (tested with 3.3)
 - Firebird 2.0+ (for RETURNING support)
+- Firebird 3.0+ or 4.0+ for full type support
 - Firebird client libraries
 
 ## Installation
@@ -39,6 +40,37 @@ conn = db.connect
 # Or create if doesn't exist
 conn = db.create.connect
 ```
+
+### Connection Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `:database` | Database path or connection string | (required) |
+| `:username` | Database username | `sysdba` |
+| `:password` | Database password | `masterkey` |
+| `:charset` | Character set for connection | `NONE` |
+| `:role` | Database role | `nil` |
+| `:encoding` | Ruby encoding for strings | `ASCII-8BIT` |
+| `:page_size` | Database page size | `4096` |
+| `:downcase_names` | Return column names in lowercase | `nil` |
+
+### Encoding
+
+By default, `@encoding` is set to `ASCII-8BIT` (binary-safe). This is the recommended setting when using `charset: 'NONE'` in Firebird.
+
+If your database uses UTF-8 charset, you can set:
+
+```ruby
+db = Fb::Database.new(
+  database: 'localhost:/path/to/database.fdb',
+  username: 'sysdba',
+  password: 'masterkey',
+  charset: 'UTF8',
+  encoding: 'UTF-8'
+)
+```
+
+**Note:** BLOB data type applies the connection encoding. Text columns (VARCHAR, CHAR) return strings without encoding conversion.
 
 ## Querying
 
@@ -178,6 +210,30 @@ result[:returning]     # => [nil]
 result[:rows_affected] # => 1
 ```
 
+## Data Types
+
+The following data types are supported:
+
+| Firebird Type | Ruby Type |
+|--------------|-----------|
+| `CHAR`, `VARCHAR` | String |
+| `BLOB` | String |
+| `SMALLINT` | Integer |
+| `INTEGER` | Integer |
+| `BIGINT` | Integer |
+| `INT128` | Integer/BigDecimal (Firebird 4+) |
+| `NUMERIC(n)` | Integer/BigDecimal |
+| `DECIMAL(n)` | Integer/BigDecimal |
+| `DECFLOAT(16)`, `DECFLOAT(34)` | BigDecimal (Firebird 4+) |
+| `FLOAT` | Float |
+| `DOUBLE PRECISION` | Float |
+| `DATE` | Date |
+| `TIME` | Time |
+| `TIMESTAMP` | DateTime |
+| `TIMESTAMP WITH TIME ZONE` | DateTime (Firebird 4+) |
+| `TIME WITH TIME ZONE` | Time (Firebird 4+) |
+| `BOOLEAN` | true/false (Firebird 3+) |
+
 ## Running Tests
 
 ```bash
@@ -204,10 +260,6 @@ FIREBIRD_DATA_DIR=/path/to/data
 ## License
 
 MIT License
-
-## TODO
-
-- [ ] Add support for DECFLOAT(16) and DECFLOAT(34) types (Firebird 4+)
 
 Note: UUID is supported via GEN_UUID() function - stores as CHAR(16) OCTETS or VARCHAR(36)
 

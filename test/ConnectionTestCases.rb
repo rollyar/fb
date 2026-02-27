@@ -79,7 +79,7 @@ class ConnectionTestCases < FbTestCase
     sql_select = 'SELECT * FROM TEST ORDER BY ID'
     Database.create(@parms) do |connection|
       connection.execute(sql_schema)
-      memo = IO.read('fb.c')
+      memo = IO.read('fb.c').force_encoding('ASCII-8BIT')
       assert memo.size > 50_000
       connection.transaction do
         10.times do |i|

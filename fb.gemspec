@@ -12,9 +12,9 @@ Gem::Specification.new do |s|
   s.email = 'rowland@rowlandresearch.com'
   s.homepage = 'http://github.com/rowland/fb'
   s.test_file = 'test/FbTestSuite.rb'
-  s.extra_rdoc_files = ['README']
-  s.rdoc_options << '--title' << 'Fb -- Ruby Firebird Extension' << '--main' << 'README' << '-x' << 'test'
-  s.files = ['extconf.rb', 'fb.c', 'README', 'fb_extensions.rb'] + Dir.glob('test/*.rb')
+  s.extra_rdoc_files = ['README.md']
+  s.rdoc_options << '--title' << 'Fb -- Ruby Firebird Extension' << '--main' << 'README.md' << '-x' << 'test'
+  s.files = ['extconf.rb', 'fb.c', 'README.md', 'fb_extensions.rb'] + Dir.glob('test/*.rb')
   s.platform = case RUBY_PLATFORM
                when /win32/ then Gem::Platform::WIN32
                else
